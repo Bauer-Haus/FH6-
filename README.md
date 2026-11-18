@@ -33,7 +33,8 @@ This creates an `out/` folder with:
 
 Options:
 
-- `--shapes N`: more layers look closer to the photo but take longer to build in-game. 30–60 works for logos, 100+ for photos.
+- `--shapes N`: more layers look closer to the photo but take longer to build in-game. 30–60 gives a rough look; detailed logos with text need around 1,000 (takes a few minutes to compute).
+- `--size N`: working resolution in pixels. The default is 160, or 320 above 200 shapes. Higher catches finer detail but runs slower.
 - `--kinds circle` or `--kinds square`: use only one shape type.
 - `--quality N`: try more candidate shapes per layer (slower, slightly better).
 - `--out folder`: choose the output folder.

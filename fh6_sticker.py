@@ -34,7 +34,7 @@ import urllib.request
 import numpy as np
 from PIL import Image, ImageDraw
 
-WORK_SIZE = 160  # longest side used for fitting (speed vs. detail)
+WORK_SIZE = 160  # default longest side used for fitting (speed vs. detail); see --size
 
 
 # --------------------------------------------------------------------------- input
@@ -71,13 +71,20 @@ class Shape:
     def copy(self):
         return Shape(self.kind, self.cx, self.cy, self.w, self.h, self.rot)
 
-    def mask(self, W, H, scale=1):
-        """Boolean mask of the shape on a W*scale x H*scale canvas."""
-        m = Image.new("L", (W * scale, H * scale), 0)
-        d = ImageDraw.Draw(m)
-        pts = self.polygon(scale)
-        d.polygon(pts, fill=255)
-        return np.asarray(m) > 127
+    def mask(self, W, H):
+        """(region, mask): region is a (row-slice, col-slice) of the canvas, mask a
+        boolean array of the shape inside that region. Only the bounding box is
+        rasterised, which keeps big layer counts fast."""
+        pts = self.polygon()
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        x0, x1 = max(int(min(xs)), 0), min(int(math.ceil(max(xs))) + 1, W)
+        y0, y1 = max(int(min(ys)), 0), min(int(math.ceil(max(ys))) + 1, H)
+        if x1 - x0 < 1 or y1 - y0 < 1:
+            return None, None
+        m = Image.new("L", (x1 - x0, y1 - y0), 0)
+        ImageDraw.Draw(m).polygon([(x - x0, y - y0) for x, y in pts], fill=255)
+        return (slice(y0, y1), slice(x0, x1)), np.asarray(m) > 127
 
     def polygon(self, scale=1):
         a = math.radians(self.rot)
@@ -106,10 +113,20 @@ class Shape:
         return s
 
 
-def random_shape(W, H, kinds):
+def random_shape(W, H, kinds, max_frac=0.4, err_map=None):
+    """New random shape. With err_map, the centre is picked where the picture is
+    still most wrong, so later layers go to the details."""
     m = max(W, H)
-    return Shape(random.choice(kinds), random.uniform(0, W), random.uniform(0, H),
-                 random.uniform(2, m * 0.4), random.uniform(2, m * 0.4),
+    if err_map is not None:
+        flat = err_map.ravel()
+        tot = flat.sum()
+        idx = np.random.choice(flat.size, p=flat / tot) if tot > 0 else random.randrange(flat.size)
+        cy, cx = divmod(int(idx), W)
+        cx, cy = cx + random.random(), cy + random.random()
+    else:
+        cx, cy = random.uniform(0, W), random.uniform(0, H)
+    hi = max(m * max_frac, 3)
+    return Shape(random.choice(kinds), cx, cy, random.uniform(1.5, hi), random.uniform(1.5, hi),
                  random.uniform(0, 180))
 
 
@@ -118,14 +135,14 @@ def random_shape(W, H, kinds):
 def evaluate(shape, target, current, err_map):
     """Return (new_total_error_delta, color, mask). Opaque fill with best (mean) color."""
     H, W, _ = target.shape
-    m = shape.mask(W, H)
-    n = m.sum()
-    if n < 2:
+    region, m = shape.mask(W, H)
+    if m is None or m.sum() < 2:
         return 0.0, None, None
-    color = target[m].mean(axis=0)
-    new_err = ((target[m] - color) ** 2).sum()
-    old_err = err_map[m].sum()
-    return new_err - old_err, color, m
+    t = target[region][m]
+    color = t.mean(axis=0)
+    new_err = ((t - color) ** 2).sum()
+    old_err = err_map[region][m].sum()
+    return new_err - old_err, color, (region, m)
 
 
 def fit(target, n_shapes, kinds, candidates=150, climbs=120, log=print):
@@ -137,7 +154,9 @@ def fit(target, n_shapes, kinds, candidates=150, climbs=120, log=print):
     for i in range(n_shapes):
         best = None
         for _ in range(candidates):
-            s = random_shape(W, H, kinds)
+            # shapes start large and shrink as the picture fills in
+            frac = 0.4 * (1 - i / n_shapes) ** 2 + 0.02
+            s = random_shape(W, H, kinds, frac, err_map if i else None)
             d, c, m = evaluate(s, target, current, err_map)
             if c is not None and (best is None or d < best[0]):
                 best = (d, s, c, m)
@@ -150,10 +169,11 @@ def fit(target, n_shapes, kinds, candidates=150, climbs=120, log=print):
         if d >= 0:
             log(f"  layer {i + 1}: no improvement found, stopping early")
             break
-        current[m] = c
-        err_map[m] = ((target[m] - c) ** 2).sum(axis=1)
+        region, mk = m
+        current[region][mk] = c
+        err_map[region][mk] = ((target[region][mk] - c) ** 2).sum(axis=1)
         layers.append((s, tuple(int(round(v)) for v in c)))
-        if (i + 1) % 10 == 0 or i + 1 == n_shapes:
+        if (i + 1) % (10 if n_shapes <= 200 else 50) == 0 or i + 1 == n_shapes:
             rmse = math.sqrt(err_map.mean() / 3)
             log(f"  {i + 1}/{n_shapes} layers, error {rmse:.1f}")
     return tuple(int(round(v)) for v in bg), layers
@@ -193,7 +213,7 @@ def hexc(c):
 
 def write_outputs(out, src, bg, layers, W, H):
     os.makedirs(out, exist_ok=True)
-    scale = max(1, 512 // max(W, H))
+    scale = max(1, round(640 / max(W, H)))
     render(bg, layers, W, H, scale).save(os.path.join(out, "preview.png"))
 
     steps = [max(1, int(len(layers) * f)) for f in (0.1, 0.25, 0.5, 1.0)]
@@ -252,18 +272,22 @@ def main():
     p.add_argument("--out", default="out", help="output folder (default ./out)")
     p.add_argument("--quality", type=int, default=150,
                    help="random candidates tried per layer (default 150; higher = slower, better)")
+    p.add_argument("--size", type=int, default=None,
+                   help="working resolution in pixels (default 160, or 320 above 200 shapes)")
     p.add_argument("--seed", type=int, default=None, help="random seed for repeatable results")
     a = p.parse_args()
 
     if a.seed is not None:
         random.seed(a.seed)
+        np.random.seed(a.seed)
     kinds = [k.strip() for k in a.kinds.split(",") if k.strip() in ("circle", "square")]
     if not kinds:
         sys.exit("--kinds must include circle and/or square")
 
     print(f"Loading {a.source} ...")
     img = load_image(a.source)
-    img.thumbnail((WORK_SIZE, WORK_SIZE), Image.LANCZOS)
+    size = a.size or (WORK_SIZE if a.shapes <= 200 else 320)
+    img.thumbnail((size, size), Image.LANCZOS)
     W, H = img.size
     target = np.asarray(img, dtype=np.float64)
     print(f"Fitting {a.shapes} shapes on a {W}x{H} working image ...")
