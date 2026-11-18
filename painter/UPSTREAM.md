@@ -17,3 +17,11 @@ at commit `75cb365` (v1.9.7, 2026-11-16), used under its MIT licenses (`LICENSE`
 | `tests/` | Font tests crashed on machines without the Windows fonts; `os.startfile` tests ran on non-Windows. | Skip cleanly instead. |
 
 None of the memory offsets, signatures or the layer-writing order were changed.
+
+## Generator source (`generator/`)
+
+`generator/` holds the source of the GPU image-to-shapes generator that
+`bin/forza-painter-geometrize-go.exe` is built from, with 8 bug fixes and tests.
+See `generator/FIXES.md`. Note the bundled EXE was **not** rebuilt from it: it is
+still the upstream author's build, so these fixes take effect only when you build
+the generator yourself and replace that file.

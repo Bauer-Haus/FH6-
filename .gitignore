@@ -1,3 +1,5 @@
 out/
 __pycache__/
 .pytest_cache/
+painter/generator/forza-painter-geometrize-go
+painter/generator/*.exe

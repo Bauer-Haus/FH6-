@@ -1,0 +1,832 @@
+package gpu
+
+// evaluateKernelSource contains all OpenCL kernels used by the engine.
+//
+// evaluate_candidates_v3 (single-pass, analytic):
+//
+//	For each candidate (cx, cy, rx, ry, thetaDeg, alpha) it computes the
+//	geometrize-style "optimal color" (alpha-weighted mean of the target
+//	minus current contribution inside the shape) and the resulting delta
+//	error if that shape were drawn over the current canvas.
+//
+//	Crucially this is done in a SINGLE pass over the bounding box. We
+//	accumulate per-channel statistics
+//	  N    = inside pixel count
+//	  Σs   = sum of current
+//	  Σt   = sum of target
+//	  Σs²  = sum of current squared
+//	  Σst  = sum of current * target
+//	and then derive both the optimal RGB color AND the analytic delta
+//	error in O(1) post-loop work via the identity
+//
+//	  Σ ΔErr = α²·[N·c² − 2c·Σs + Σs²] − 2α·[c·Σt − c·Σs − Σst + Σs²]
+//
+//	which holds for any constant c summed over the ellipse. The alpha
+//	channel uses the same identity with c=1 (because out_a blends
+//	towards 1 weighted by α, not towards a free color parameter).
+//
+//	Skipping the second bbox traversal halves the work-item runtime at
+//	the cost of ~17 extra register-resident accumulators per work-item.
+//
+//	Output per candidate: 4 floats { score, R, G, B }. Score is summed
+//	over inside pixels (negative = better). Opaque pixels feed the
+//	optimal-color statistics; transparent pixels inside the ellipse are
+//	counted separately as Nt. Because the FH6 in-game renderer ignores
+//	our alpha mask and paints the *full* ellipse, any shape that
+//	extends into the transparent region produces a visible halo against
+//	whatever body colour the user picked. We therefore hard-reject
+//	candidates with too much spill, using both a relative limit and an
+//	absolute pixel cap so large ellipses cannot sneak through with a
+//	large transparent tail.
+//
+// apply_candidate_v2:
+//
+//	Blends a chosen shape into the current canvas. Operates on a tight
+//	bounding box and skips transparent pixels.
+//
+// compute_error_grid:
+//
+//	Buckets the per-pixel squared error of (target - current) into a
+//	downsampled gridW x gridH buffer. The host side reads it back and
+//	uses it to bias random candidate placement towards high-error
+//	regions.
+const evaluateKernelSource = `
+__kernel void evaluate_candidates_v3(
+    __global const float4* target,
+    __global const float4* current,
+    __global const uchar* opaqueMask,
+    __global const float* candidates,
+    __global float* results,
+    const int width,
+    const int height,
+    const int sampleStep
+) {
+    int gid = get_global_id(0);
+
+    int base = gid * 7;
+    float cx = candidates[base + 0];
+    float cy = candidates[base + 1];
+    float rx = fmax(candidates[base + 2], 1.0f);
+    float ry = fmax(candidates[base + 3], 1.0f);
+    float thetaDeg = candidates[base + 4];
+    float ca = clamp(candidates[base + 5], 1e-3f, 1.0f);
+    int shapeType = (int)candidates[base + 6];
+
+    float theta = thetaDeg * 0.01745329251994329577f;
+    float cosT = cos(theta);
+    float sinT = sin(theta);
+    float invRX2 = 1.0f / (rx * rx);
+    float invRY2 = 1.0f / (ry * ry);
+
+    float rx2 = rx * rx;
+    float ry2 = ry * ry;
+    float cos2 = cosT * cosT;
+    float sin2 = sinT * sinT;
+    float ex = sqrt(rx2 * cos2 + ry2 * sin2);
+    float ey = sqrt(rx2 * sin2 + ry2 * cos2);
+    if (shapeType != 1) {
+        // Rectangles/triangles reach their corners: |rx·cos| + |ry·sin|.
+        // The ellipse formula above clipped rotated corners.
+        ex = rx * fabs(cosT) + ry * fabs(sinT);
+        ey = rx * fabs(sinT) + ry * fabs(cosT);
+    }
+
+    int xMin = (int)floor(cx - ex - 1.0f);
+    int xMax = (int)ceil(cx + ex + 1.0f);
+    int yMin = (int)floor(cy - ey - 1.0f);
+    int yMax = (int)ceil(cy + ey + 1.0f);
+
+    xMin = max(0, xMin);
+    yMin = max(0, yMin);
+    xMax = min(width - 1, xMax);
+    yMax = min(height - 1, yMax);
+
+    // Per-channel statistics. 17 floats live in registers across the
+    // bbox iteration; modern GPUs have plenty of headroom for this.
+    int N = 0;   // opaque pixels inside the ellipse
+    int Nt = 0;  // transparent pixels inside the ellipse (penalty bucket)
+    float sTR = 0.0f, sTG = 0.0f, sTB = 0.0f, sTA = 0.0f;       // Σ target
+    float sCR = 0.0f, sCG = 0.0f, sCB = 0.0f, sCA = 0.0f;       // Σ current
+    float sCR2 = 0.0f, sCG2 = 0.0f, sCB2 = 0.0f, sCA2 = 0.0f;   // Σ current²
+    float sTCR = 0.0f, sTCG = 0.0f, sTCB = 0.0f, sTCA = 0.0f;   // Σ target·current
+
+    int sampleStride = max(sampleStep, 1);
+
+    for (int y = yMin; y <= yMax; y += sampleStride) {
+        int row = y * width;
+        float dy = ((float)y + 0.5f) - cy;
+        for (int x = xMin; x <= xMax; x += sampleStride){
+            float dx = ((float)x + 0.5f) - cx;
+            float xr = dx * cosT + dy * sinT;
+            float yr = -dx * sinT + dy * cosT;
+            bool inside = false;
+            if (shapeType == 1) {
+                inside = (xr * xr * invRX2 + yr * yr * invRY2 <= 1.0f);
+            } else if (shapeType == 2) {
+                if (yr >= -ry && yr <= ry) {
+                    float halfWidth = rx * (yr + ry) / (2.0f * ry);
+                    inside = (fabs(xr) <= halfWidth);
+                }
+            } else {
+                inside = (fabs(xr) <= rx && fabs(yr) <= ry);
+            }
+            if (!inside) {
+                continue;
+            }
+            int p = row + x;
+            if (opaqueMask[p] == 0) {
+                Nt++;
+                continue;
+            }
+
+            float4 t = target[p];
+            float4 s = current[p];
+
+            sTR += t.x; sTG += t.y; sTB += t.z; sTA += t.w;
+            sCR += s.x; sCG += s.y; sCB += s.z; sCA += s.w;
+            sCR2 += s.x * s.x;
+            sCG2 += s.y * s.y;
+            sCB2 += s.z * s.z;
+            sCA2 += s.w * s.w;
+            sTCR += t.x * s.x;
+            sTCG += t.y * s.y;
+            sTCB += t.z * s.z;
+            sTCA += t.w * s.w;
+            N++;
+        }
+    }
+
+    // Hard reject:
+    //   - shapes covering no opaque pixel at all
+    //   - shapes with more than a tiny transparent spill
+    // Keep this strict enough that large early ellipses do not wander
+    // heavily into the transparent region.
+    if (N == 0 || Nt > 64 || Nt * 400 > N) {
+        results[gid * 4 + 0] = 3.402823466e+38f;
+        results[gid * 4 + 1] = 0.0f;
+        results[gid * 4 + 2] = 0.0f;
+        results[gid * 4 + 3] = 0.0f;
+        return;
+    }
+
+    float Nf = (float)N;
+    float invN = 1.0f / Nf;
+    float invA = 1.0f - ca;
+
+    // Optimal RGB color: c = (mean(t) − mean(s)·(1−α)) / α  (clamped).
+    // The clamped color is what will actually be rendered, so we plug
+    // that same value into the analytic ΔErr formula below — the
+    // identity holds for any constant c, not just the unclamped optimum.
+    float oR = clamp((sTR * invN - (sCR * invN) * invA) / ca, 0.0f, 1.0f);
+    float oG = clamp((sTG * invN - (sCG * invN) * invA) / ca, 0.0f, 1.0f);
+    float oB = clamp((sTB * invN - (sCB * invN) * invA) / ca, 0.0f, 1.0f);
+
+    // Σ ΔErr = α²·[N·c² − 2c·Σs + Σs²] − 2α·[c·Σt − c·Σs − Σst + Σs²]
+    //
+    // RGB channels use the optimised c above. The alpha channel blends
+    // toward 1 (out_a = s_a·(1−α) + α), so we substitute c = 1 below.
+    float a2 = ca * ca;
+    float two_a = 2.0f * ca;
+
+    float dR = a2 * (Nf*oR*oR - 2.0f*oR*sCR + sCR2)
+             - two_a * (oR*sTR - oR*sCR - sTCR + sCR2);
+    float dG = a2 * (Nf*oG*oG - 2.0f*oG*sCG + sCG2)
+             - two_a * (oG*sTG - oG*sCG - sTCG + sCG2);
+    float dB = a2 * (Nf*oB*oB - 2.0f*oB*sCB + sCB2)
+             - two_a * (oB*sTB - oB*sCB - sTCB + sCB2);
+    float dA = a2 * (Nf - 2.0f*sCA + sCA2)
+             - two_a * (sTA - sCA - sTCA + sCA2);
+
+    float totalDelta = dR + dG + dB + dA;
+
+    float sampleScale = (float)(sampleStride * sampleStride);
+    totalDelta *= sampleScale;
+
+    // Remaining spill is still penalized so the optimiser prefers
+    // tighter shapes even before the hard cap triggers.
+    if (Nt > 0) {
+        float spillFrac = (float)Nt / (float)(N + Nt);
+        float penalty = a2 * ((float)Nt) * (1.0f + 2.0f * spillFrac) * (oR*oR + oG*oG + oB*oB + 1.0f);
+        totalDelta += penalty;
+    }
+
+    results[gid * 4 + 0] = totalDelta;
+    results[gid * 4 + 1] = oR;
+    results[gid * 4 + 2] = oG;
+    results[gid * 4 + 3] = oB;
+}
+
+// evaluate_candidates_v4 (work-group reduction):
+//   Same analytic single-pass algorithm as v3, but the bounding-box
+//   traversal is split across a 256-work-item group (16×16). Each
+//   work-item strides through the bbox independently, accumulating
+//   partial statistics in registers, then writes them to local memory.
+//   An O(log₂ N) tree reduction merges the partials so that only
+//   work-item 0 writes the final result. For large bboxes this cuts
+//   per-work-item pixel visits from ~160k down to ~600, reducing
+//   register pressure and improving occupancy.
+//
+//   Local memory budget: 256 work-items × 18 floats = 18.4 KB, well
+//   within typical 32–64 KB per-work-group limits.
+#define WG_SIZE 256
+
+__kernel void evaluate_candidates_v4(
+    __global const float4* target,
+    __global const float4* current,
+    __global const uchar* opaqueMask,
+    __global const float* candidates,
+    __global float* results,
+    const int width,
+    const int height,
+    const int sampleStep
+) {
+    int gid = get_group_id(0);   // candidate index
+    int lid = get_local_id(1) * get_local_size(0) + get_local_id(0); // 0..255
+
+    int base = gid * 7;
+    float cx = candidates[base + 0];
+    float cy = candidates[base + 1];
+    float rx = fmax(candidates[base + 2], 1.0f);
+    float ry = fmax(candidates[base + 3], 1.0f);
+    float thetaDeg = candidates[base + 4];
+    float ca = clamp(candidates[base + 5], 1e-3f, 1.0f);
+    int shapeType = (int)candidates[base + 6];
+
+    float theta = thetaDeg * 0.01745329251994329577f;
+    float cosT = cos(theta);
+    float sinT = sin(theta);
+    float invRX2 = 1.0f / (rx * rx);
+    float invRY2 = 1.0f / (ry * ry);
+
+    float rx2 = rx * rx;
+    float ry2 = ry * ry;
+    float cos2 = cosT * cosT;
+    float sin2 = sinT * sinT;
+    float ex = sqrt(rx2 * cos2 + ry2 * sin2);
+    float ey = sqrt(rx2 * sin2 + ry2 * cos2);
+    if (shapeType != 1) {
+        // Rectangles/triangles reach their corners: |rx·cos| + |ry·sin|.
+        // The ellipse formula above clipped rotated corners.
+        ex = rx * fabs(cosT) + ry * fabs(sinT);
+        ey = rx * fabs(sinT) + ry * fabs(cosT);
+    }
+
+    int xMin = (int)floor(cx - ex - 1.0f);
+    int xMax = (int)ceil(cx + ex + 1.0f);
+    int yMin = (int)floor(cy - ey - 1.0f);
+    int yMax = (int)ceil(cy + ey + 1.0f);
+
+    xMin = max(0, xMin);
+    yMin = max(0, yMin);
+    xMax = min(width - 1, xMax);
+    yMax = min(height - 1, yMax);
+
+    int bw = max(xMax - xMin + 1, 1);
+    int totalCells = bw * max(yMax - yMin + 1, 1);
+
+    int N = 0, Nt = 0;
+    float sTR = 0.0f, sTG = 0.0f, sTB = 0.0f, sTA = 0.0f;
+    float sCR = 0.0f, sCG = 0.0f, sCB = 0.0f, sCA = 0.0f;
+    float sCR2 = 0.0f, sCG2 = 0.0f, sCB2 = 0.0f, sCA2 = 0.0f;
+    float sTCR = 0.0f, sTCG = 0.0f, sTCB = 0.0f, sTCA = 0.0f;
+
+
+    int sampleStride = max(sampleStep, 1);
+
+    for (int ci = lid; ci < totalCells; ci += WG_SIZE) {
+        int ly = ci / bw;
+        int lx = ci % bw;
+        int x = xMin + lx;
+        int y = yMin + ly;
+
+        if (((x - xMin) % sampleStride) != 0 || ((y - yMin) % sampleStride) != 0) {
+            continue;
+        }
+
+        float dx = ((float)x + 0.5f) - cx;
+        float dy = ((float)y + 0.5f) - cy;
+        float xr = dx * cosT + dy * sinT;
+        float yr = -dx * sinT + dy * cosT;
+        bool inside = false;
+        if (shapeType == 1) {
+            inside = (xr * xr * invRX2 + yr * yr * invRY2 <= 1.0f);
+        } else if (shapeType == 2) {
+            if (yr >= -ry && yr <= ry) {
+                float halfWidth = rx * (yr + ry) / (2.0f * ry);
+                inside = (fabs(xr) <= halfWidth);
+            }
+        } else {
+            inside = (fabs(xr) <= rx && fabs(yr) <= ry);
+        }
+        if (!inside) {
+            continue;
+        }
+        int p = y * width + x;
+        if (opaqueMask[p] == 0) {
+            Nt++;
+            continue;
+        }
+
+        float4 t = target[p];
+        float4 s = current[p];
+
+        sTR += t.x; sTG += t.y; sTB += t.z; sTA += t.w;
+        sCR += s.x; sCG += s.y; sCB += s.z; sCA += s.w;
+        sCR2 += s.x * s.x; sCG2 += s.y * s.y;
+        sCB2 += s.z * s.z; sCA2 += s.w * s.w;
+        sTCR += t.x * s.x; sTCG += t.y * s.y;
+        sTCB += t.z * s.z; sTCA += t.w * s.w;
+        N++;
+    }
+
+    // Write partials to local memory (flat, 18 floats per work-item).
+    __local float l_data[WG_SIZE * 18];
+    int off = lid * 18;
+    l_data[off +  0] = (float)N;  l_data[off +  1] = (float)Nt;
+    l_data[off +  2] = sTR;       l_data[off +  3] = sTG;
+    l_data[off +  4] = sTB;       l_data[off +  5] = sTA;
+    l_data[off +  6] = sCR;       l_data[off +  7] = sCG;
+    l_data[off +  8] = sCB;       l_data[off +  9] = sCA;
+    l_data[off + 10] = sCR2;      l_data[off + 11] = sCG2;
+    l_data[off + 12] = sCB2;      l_data[off + 13] = sCA2;
+    l_data[off + 14] = sTCR;      l_data[off + 15] = sTCG;
+    l_data[off + 16] = sTCB;      l_data[off + 17] = sTCA;
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // Tree reduction: log2(256) = 8 rounds.
+    for (int stride = WG_SIZE / 2; stride > 0; stride >>= 1) {
+        if (lid < stride) {
+            int a = lid * 18;
+            int b = (lid + stride) * 18;
+            for (int k = 0; k < 18; k++) {
+                l_data[a + k] += l_data[b + k];
+            }
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    // Only work-item 0 writes the final result for this candidate.
+    if (lid != 0) {
+        return;
+    }
+
+    N  = (int)l_data[0];   Nt = (int)l_data[1];
+    sTR = l_data[2];  sTG = l_data[3];  sTB = l_data[4];  sTA = l_data[5];
+    sCR = l_data[6];  sCG = l_data[7];  sCB = l_data[8];  sCA = l_data[9];
+    sCR2= l_data[10]; sCG2= l_data[11]; sCB2= l_data[12]; sCA2= l_data[13];
+    sTCR= l_data[14]; sTCG= l_data[15]; sTCB= l_data[16]; sTCA= l_data[17];
+
+    // Hard reject (same thresholds as v3).
+    if (N == 0 || Nt > 64 || Nt * 400 > N) {
+        results[gid * 4 + 0] = 3.402823466e+38f;
+        results[gid * 4 + 1] = 0.0f;
+        results[gid * 4 + 2] = 0.0f;
+        results[gid * 4 + 3] = 0.0f;
+        return;
+    }
+
+    float Nf = (float)N;
+    float invN = 1.0f / Nf;
+    float invA = 1.0f - ca;
+
+    float oR = clamp((sTR * invN - (sCR * invN) * invA) / ca, 0.0f, 1.0f);
+    float oG = clamp((sTG * invN - (sCG * invN) * invA) / ca, 0.0f, 1.0f);
+    float oB = clamp((sTB * invN - (sCB * invN) * invA) / ca, 0.0f, 1.0f);
+
+    float a2 = ca * ca;
+    float two_a = 2.0f * ca;
+
+    float dR = a2 * (Nf*oR*oR - 2.0f*oR*sCR + sCR2)
+             - two_a * (oR*sTR - oR*sCR - sTCR + sCR2);
+    float dG = a2 * (Nf*oG*oG - 2.0f*oG*sCG + sCG2)
+             - two_a * (oG*sTG - oG*sCG - sTCG + sCG2);
+    float dB = a2 * (Nf*oB*oB - 2.0f*oB*sCB + sCB2)
+             - two_a * (oB*sTB - oB*sCB - sTCB + sCB2);
+    float dA = a2 * (Nf - 2.0f*sCA + sCA2)
+             - two_a * (sTA - sCA - sTCA + sCA2);
+
+    float totalDelta = dR + dG + dB + dA;
+
+    float sampleScale = (float)(sampleStride * sampleStride);
+    totalDelta *= sampleScale;
+
+    if (Nt > 0) {
+        float spillFrac = (float)Nt / (float)(N + Nt);
+        totalDelta += a2 * ((float)Nt) * (1.0f + 2.0f * spillFrac) * (oR*oR + oG*oG + oB*oB + 1.0f);
+    }
+
+    results[gid * 4 + 0] = totalDelta;
+    results[gid * 4 + 1] = oR;
+    results[gid * 4 + 2] = oG;
+    results[gid * 4 + 3] = oB;
+}
+
+__kernel void apply_candidate_v2(
+    __global float4* current,
+    __global const uchar* opaqueMask,
+    const int width,
+    const int height,
+    const int xMin,
+    const int yMin,
+    const int xMax,
+    const int yMax,
+    const float cx,
+    const float cy,
+    const float rxRaw,
+    const float ryRaw,
+    const float thetaDeg,
+    const float cr,
+    const float cg,
+    const float cb,
+    const float ca,
+    const int shapeType
+) {
+    int lx = get_global_id(0);
+    int ly = get_global_id(1);
+    int bw = xMax - xMin + 1;
+    int bh = yMax - yMin + 1;
+    if (lx >= bw || ly >= bh) {
+        return;
+    }
+    int x = xMin + lx;
+    int y = yMin + ly;
+    int p = y * width + x;
+    if (opaqueMask[p] == 0) {
+        return;
+    }
+
+    float rx = fmax(rxRaw, 1.0f);
+    float ry = fmax(ryRaw, 1.0f);
+    float theta = thetaDeg * 0.01745329251994329577f;
+    float cosT = cos(theta);
+    float sinT = sin(theta);
+    float invRX2 = 1.0f / (rx * rx);
+    float invRY2 = 1.0f / (ry * ry);
+
+    float dx = ((float)x + 0.5f) - cx;
+    float dy = ((float)y + 0.5f) - cy;
+    float xr = dx * cosT + dy * sinT;
+    float yr = -dx * sinT + dy * cosT;
+    bool inside = false;
+    if (shapeType == 1) {
+        inside = (xr * xr * invRX2 + yr * yr * invRY2 <= 1.0f);
+    } else if (shapeType == 2) {
+        if (yr >= -ry && yr <= ry) {
+            float halfWidth = rx * (yr + ry) / (2.0f * ry);
+                inside = (fabs(xr) <= halfWidth);
+        }
+    } else {
+            inside = (fabs(xr) <= rx && fabs(yr) <= ry);
+    }
+    if (!inside) {
+        return;
+    }
+
+    float4 src = current[p];
+    float alpha = clamp(ca, 0.0f, 1.0f);
+    float invA = 1.0f - alpha;
+    src.x = src.x * invA + clamp(cr, 0.0f, 1.0f) * alpha;
+    src.y = src.y * invA + clamp(cg, 0.0f, 1.0f) * alpha;
+    src.z = src.z * invA + clamp(cb, 0.0f, 1.0f) * alpha;
+    src.w = src.w * invA + alpha;
+    current[p] = src;
+}
+
+__kernel void compute_error_grid(
+    __global const float4* target,
+    __global const float4* current,
+    __global const uchar* opaqueMask,
+    __global float* gridOut,
+    const int width,
+    const int height,
+    const int gridW,
+    const int gridH
+) {
+    int gx = get_global_id(0);
+    int gy = get_global_id(1);
+    if (gx >= gridW || gy >= gridH) {
+        return;
+    }
+
+    int x0 = (int)(((long)gx * (long)width) / (long)gridW);
+    int x1 = (int)(((long)(gx + 1) * (long)width) / (long)gridW);
+    int y0 = (int)(((long)gy * (long)height) / (long)gridH);
+    int y1 = (int)(((long)(gy + 1) * (long)height) / (long)gridH);
+
+    float sum = 0.0f;
+    for (int y = y0; y < y1; ++y) {
+        int row = y * width;
+        for (int x = x0; x < x1; ++x) {
+            int p = row + x;
+            if (opaqueMask[p] == 0) {
+                continue;
+            }
+            float4 t = target[p];
+            float4 s = current[p];
+            float dr = t.x - s.x;
+            float dg = t.y - s.y;
+            float db = t.z - s.z;
+            float da = t.w - s.w;
+            sum += dr * dr + dg * dg + db * db + da * da;
+        }
+    }
+    gridOut[gy * gridW + gx] = sum;
+}
+
+// ------------------------------------------------------------------
+// SSIM kernels — used when errorMetric = "ssim".
+//
+// compute_ssim_map is implemented as two separable passes:
+//   1. box_filter_h  — horizontal 11-pixel box filter of target/current luminance
+//   2. box_filter_v_ssim — vertical 11-pixel box filter + final SSIM per pixel
+//
+// The per-pixel DSSIM (1-SSIM) is stored into ssimMap and consumed by
+// the SSIM variants of the error-grid and candidate-evaluation kernels.
+// ------------------------------------------------------------------
+
+__kernel void box_filter_h(
+    __global const float4* target,
+    __global const float4* current,
+    __global float* out_mean_t,
+    __global float* out_mean_c,
+    __global float* out_mean_t2,
+    __global float* out_mean_c2,
+    __global float* out_mean_tc,
+    const int width,
+    const int height
+) {
+    int x = get_global_id(0);
+    int y = get_global_id(1);
+    if (x >= width || y >= height) return;
+
+    int radius = 5; // 11-wide window
+    float sum_t = 0.0f, sum_c = 0.0f;
+    float sum_t2 = 0.0f, sum_c2 = 0.0f, sum_tc = 0.0f;
+    int count = 0;
+
+    for (int dx = -radius; dx <= radius; dx++) {
+        int sx = x + dx;
+        if (sx < 0 || sx >= width) continue;
+        int sp = y * width + sx;
+        float4 t = target[sp];
+        float4 c = current[sp];
+        // BT.601 luminance
+        float yt = 0.299f * t.x + 0.587f * t.y + 0.114f * t.z;
+        float yc = 0.299f * c.x + 0.587f * c.y + 0.114f * c.z;
+        sum_t  += yt;
+        sum_c  += yc;
+        sum_t2 += yt * yt;
+        sum_c2 += yc * yc;
+        sum_tc += yt * yc;
+        count++;
+    }
+
+    float inv = 1.0f / (float)count;
+    int idx = y * width + x;
+    out_mean_t[idx]  = sum_t  * inv;
+    out_mean_c[idx]  = sum_c  * inv;
+    out_mean_t2[idx] = sum_t2 * inv;
+    out_mean_c2[idx] = sum_c2 * inv;
+    out_mean_tc[idx] = sum_tc * inv;
+}
+
+__kernel void box_filter_v_ssim(
+    __global const float* in_mean_t,
+    __global const float* in_mean_c,
+    __global const float* in_mean_t2,
+    __global const float* in_mean_c2,
+    __global const float* in_mean_tc,
+    __global float* ssim_map,
+    const int width,
+    const int height
+) {
+    int x = get_global_id(0);
+    int y = get_global_id(1);
+    if (x >= width || y >= height) return;
+
+    int radius = 5;
+    float sum_mt = 0.0f, sum_mc = 0.0f;
+    float sum_mt2 = 0.0f, sum_mc2 = 0.0f, sum_mtc = 0.0f;
+    int count = 0;
+
+    for (int dy = -radius; dy <= radius; dy++) {
+        int sy = y + dy;
+        if (sy < 0 || sy >= height) continue;
+        int sp = sy * width + x;
+        sum_mt  += in_mean_t[sp];
+        sum_mc  += in_mean_c[sp];
+        sum_mt2 += in_mean_t2[sp];
+        sum_mc2 += in_mean_c2[sp];
+        sum_mtc += in_mean_tc[sp];
+        count++;
+    }
+
+    float inv = 1.0f / (float)count;
+    float mu_t  = sum_mt  * inv;
+    float mu_c  = sum_mc  * inv;
+    float mu_t2 = sum_mt2 * inv;
+    float mu_c2 = sum_mc2 * inv;
+    float mu_tc = sum_mtc * inv;
+
+    float sigma_t2 = fmax(mu_t2 - mu_t * mu_t, 0.0f);
+    float sigma_c2 = fmax(mu_c2 - mu_c * mu_c, 0.0f);
+    float sigma_tc = mu_tc - mu_t * mu_c;
+
+    const float C1 = 1e-4f;
+    const float C2 = 9e-4f;
+    float num = (2.0f * mu_t * mu_c + C1) * (2.0f * sigma_tc + C2);
+    float den = (mu_t * mu_t + mu_c * mu_c + C1) * (sigma_t2 + sigma_c2 + C2);
+    float ssim = num / (den + 1e-12f);
+
+    ssim_map[y * width + x] = fmax(0.0f, 1.0f - ssim);
+}
+
+__kernel void compute_ssim_error_grid(
+    __global const float* ssim_map,
+    __global const uchar* opaqueMask,
+    __global float* gridOut,
+    const int width,
+    const int height,
+    const int gridW,
+    const int gridH
+) {
+    int gx = get_global_id(0);
+    int gy = get_global_id(1);
+    if (gx >= gridW || gy >= gridH) return;
+
+    int x0 = (int)(((long)gx * (long)width) / (long)gridW);
+    int x1 = (int)(((long)(gx + 1) * (long)width) / (long)gridW);
+    int y0 = (int)(((long)gy * (long)height) / (long)gridH);
+    int y1 = (int)(((long)(gy + 1) * (long)height) / (long)gridH);
+
+    float sum = 0.0f;
+    for (int y = y0; y < y1; ++y) {
+        int row = y * width;
+        for (int x = x0; x < x1; ++x) {
+            int p = row + x;
+            if (opaqueMask[p] == 0) continue;
+            sum += ssim_map[p];
+        }
+    }
+    gridOut[gy * gridW + gx] = sum;
+}
+
+__kernel void evaluate_candidates_ssim(
+    __global const float4* target,
+    __global const float4* current,
+    __global const uchar* opaqueMask,
+    __global const float* candidates,
+    __global const float* ssim_map,
+    __global float* results,
+    const int width,
+    const int height,
+    const int sampleStep,
+    const float ssimWeight
+) {
+    int gid = get_global_id(0);
+
+    // 7 floats per candidate, matching the host packing in SubmitEval
+    // (x, y, rx, ry, theta, alpha, shapeType). This used to read 6, so every
+    // candidate after the first was scored with another candidate's data.
+    int base = gid * 7;
+    float cx = candidates[base + 0];
+    float cy = candidates[base + 1];
+    float rx = fmax(candidates[base + 2], 1.0f);
+    float ry = fmax(candidates[base + 3], 1.0f);
+    float thetaDeg = candidates[base + 4];
+    float ca = clamp(candidates[base + 5], 1e-3f, 1.0f);
+    int shapeType = (int)candidates[base + 6];
+
+    float theta = thetaDeg * 0.01745329251994329577f;
+    float cosT = cos(theta);
+    float sinT = sin(theta);
+    float invRX2 = 1.0f / (rx * rx);
+    float invRY2 = 1.0f / (ry * ry);
+
+    float rx2 = rx * rx;
+    float ry2 = ry * ry;
+    float cos2 = cosT * cosT;
+    float sin2 = sinT * sinT;
+    float ex = sqrt(rx2 * cos2 + ry2 * sin2);
+    float ey = sqrt(rx2 * sin2 + ry2 * cos2);
+    if (shapeType != 1) {
+        // Rectangles/triangles reach their corners: |rx·cos| + |ry·sin|.
+        // The ellipse formula above clipped rotated corners.
+        ex = rx * fabs(cosT) + ry * fabs(sinT);
+        ey = rx * fabs(sinT) + ry * fabs(cosT);
+    }
+
+    int xMin = (int)floor(cx - ex - 1.0f);
+    int xMax = (int)ceil(cx + ex + 1.0f);
+    int yMin = (int)floor(cy - ey - 1.0f);
+    int yMax = (int)ceil(cy + ey + 1.0f);
+
+    xMin = max(0, xMin);
+    yMin = max(0, yMin);
+    xMax = min(width - 1, xMax);
+    yMax = min(height - 1, yMax);
+
+    // MSE statistics (same as evaluate_candidates_v3)
+    int N = 0, Nt = 0;
+    float sTR = 0.0f, sTG = 0.0f, sTB = 0.0f, sTA = 0.0f;
+    float sCR = 0.0f, sCG = 0.0f, sCB = 0.0f, sCA = 0.0f;
+    float sCR2 = 0.0f, sCG2 = 0.0f, sCB2 = 0.0f, sCA2 = 0.0f;
+    float sTCR = 0.0f, sTCG = 0.0f, sTCB = 0.0f, sTCA = 0.0f;
+    // SSIM error accumulator
+    float ssimSum = 0.0f;
+
+    int sampleStride = max(sampleStep, 1);
+
+    for (int y = yMin; y <= yMax; y += sampleStride) {
+        int row = y * width;
+        float dy = ((float)y + 0.5f) - cy;
+        for (int x = xMin; x <= xMax; x += sampleStride) {
+            float dx = ((float)x + 0.5f) - cx;
+            float xr = dx * cosT + dy * sinT;
+            float yr = -dx * sinT + dy * cosT;
+            bool inside = false;
+            if (shapeType == 1) {
+                inside = (xr * xr * invRX2 + yr * yr * invRY2 <= 1.0f);
+            } else if (shapeType == 2) {
+                if (yr >= -ry && yr <= ry) {
+                    float halfWidth = rx * (yr + ry) / (2.0f * ry);
+                    inside = (fabs(xr) <= halfWidth);
+                }
+            } else {
+                inside = (fabs(xr) <= rx && fabs(yr) <= ry);
+            }
+            if (!inside) continue;
+
+            int p = row + x;
+            if (opaqueMask[p] == 0) {
+                Nt++;
+                continue;
+            }
+
+            float4 t = target[p];
+            float4 s = current[p];
+
+            sTR += t.x; sTG += t.y; sTB += t.z; sTA += t.w;
+            sCR += s.x; sCG += s.y; sCB += s.z; sCA += s.w;
+            sCR2 += s.x * s.x; sCG2 += s.y * s.y;
+            sCB2 += s.z * s.z; sCA2 += s.w * s.w;
+            sTCR += t.x * s.x; sTCG += t.y * s.y;
+            sTCB += t.z * s.z; sTCA += t.w * s.w;
+            ssimSum += ssim_map[p];
+            N++;
+        }
+    }
+
+    if (N == 0 || Nt > 64 || Nt * 400 > N) {
+        results[gid * 4 + 0] = 3.402823466e+38f;
+        results[gid * 4 + 1] = 0.0f;
+        results[gid * 4 + 2] = 0.0f;
+        results[gid * 4 + 3] = 0.0f;
+        return;
+    }
+
+    float Nf = (float)N;
+    float invN = 1.0f / Nf;
+    float invA = 1.0f - ca;
+
+    float oR = clamp((sTR * invN - (sCR * invN) * invA) / ca, 0.0f, 1.0f);
+    float oG = clamp((sTG * invN - (sCG * invN) * invA) / ca, 0.0f, 1.0f);
+    float oB = clamp((sTB * invN - (sCB * invN) * invA) / ca, 0.0f, 1.0f);
+
+    float a2 = ca * ca;
+    float two_a = 2.0f * ca;
+
+    // MSE delta (same as v3)
+    float dR = a2 * (Nf*oR*oR - 2.0f*oR*sCR + sCR2)
+             - two_a * (oR*sTR - oR*sCR - sTCR + sCR2);
+    float dG = a2 * (Nf*oG*oG - 2.0f*oG*sCG + sCG2)
+             - two_a * (oG*sTG - oG*sCG - sTCG + sCG2);
+    float dB = a2 * (Nf*oB*oB - 2.0f*oB*sCB + sCB2)
+             - two_a * (oB*sTB - oB*sCB - sTCB + sCB2);
+    float dA = a2 * (Nf - 2.0f*sCA + sCA2)
+             - two_a * (sTA - sCA - sTCA + sCA2);
+
+    float mseDelta = dR + dG + dB + dA;
+
+    float sampleScale = (float)(sampleStride * sampleStride);
+    mseDelta *= sampleScale;
+
+    // SSIM delta: -alpha * sum(ssim_err)  (first-order approximation)
+    float ssimDelta = -ca * ssimSum * sampleScale;
+
+    // Blend MSE and SSIM deltas; ssimWeight = 0 → pure MSE, 1 → pure SSIM
+    float mseW = 1.0f - clamp(ssimWeight, 0.0f, 1.0f);
+    float totalDelta = mseW * mseDelta + clamp(ssimWeight, 0.0f, 1.0f) * ssimDelta;
+
+    if (Nt > 0) {
+        float spillFrac = (float)Nt / (float)(N + Nt);
+        totalDelta += a2 * ((float)Nt) * (1.0f + 2.0f * spillFrac) * (oR*oR + oG*oG + oB*oB + 1.0f);
+    }
+
+    results[gid * 4 + 0] = totalDelta;
+    results[gid * 4 + 1] = oR;
+    results[gid * 4 + 2] = oG;
+    results[gid * 4 + 3] = oB;
+}
+`
