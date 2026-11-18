@@ -30,6 +30,7 @@ Every fix has a test that fails on the original code and passes here
 | 6 | `opencl.go` `SubmitEval`; engine | SSIM branch unreachable with the default `useWorkGroupEval = true`; SSIM map not built before the first shape | `errorMetric = ssim` printed "SSIM" but scored with MSE; the first SSIM evaluation read an uninitialised buffer. Vulkan has no SSIM kernels; it now warns. |
 | 7 | `imageutil.LoadAndPrepare` | Go's `RGBA()` is alpha-premultiplied but was used as straight colour | Dark fringes around transparent PNGs (edge brightness 90 vs true 104; 105 after the fix). |
 | 8 | engine hill climb | Compared raw scores while the random pick used score + large-shape penalty | The climb could grow shapes past the penalty the random stage enforces. |
+| 9 | `output.SaveGeometry`, `render.SavePNG` | Files were truncated and rewritten in place while the desktop app polls them | The app could read a half-written preview PNG or checkpoint. Now written to a temp file and renamed (falls back to a direct write if the rename is blocked). Previews also encode with `BestSpeed` and fill pixels directly. |
 
 Normal output is unchanged: with default settings on an opaque image the result
 is identical before and after (same RMSE with the same seed).

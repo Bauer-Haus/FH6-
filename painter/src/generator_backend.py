@@ -54,6 +54,14 @@ SETTING_KEYS: tuple[str, ...] = (
     "saveAt",
     "saveEvery",
     "stopAt",
+    # Accepted by the generator but not written by the bundled presets; they
+    # used to be dropped silently when the Custom settings file was written.
+    "errorMetric",
+    "ssimWeight",
+    "useWorkGroupEval",
+    "enableMultiPrimitiveShapes",
+    "randomSampleBudget",
+    "loadGeometry",
 )
 
 _GENERATOR_ENV_KEEP = {
@@ -276,6 +284,17 @@ def load_settings() -> list[SettingProfile]:
     return profiles
 
 
+def _settings_lines(values: dict[str, str]) -> list[str]:
+    """Known keys in their usual order, then any other key from the preset."""
+    lines = [f"{key} = {values[key]}" for key in SETTING_KEYS if key in values]
+    lines.extend(
+        f"{key} = {value}"
+        for key, value in values.items()
+        if key not in SETTING_KEYS and key.lower() != "description"
+    )
+    return lines
+
+
 def write_custom_settings(
     base_setting: SettingProfile, custom_values: dict[str, str]
 ) -> SettingProfile:
@@ -283,9 +302,7 @@ def write_custom_settings(
     CUSTOM_SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
     path = CUSTOM_SETTINGS_DIR / "custom.ini"
     lines = ["description = Custom UI settings"]
-    for key in SETTING_KEYS:
-        if key in values:
-            lines.append(f"{key} = {values[key]}")
+    lines.extend(_settings_lines(values))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return SettingProfile(
         index=base_setting.index,
@@ -309,9 +326,7 @@ def write_user_settings_preset(
     if path.suffix.lower() != ".ini":
         path = path.with_suffix(".ini")
     lines = [f"description = {description}"]
-    for key in SETTING_KEYS:
-        if key in values:
-            lines.append(f"{key} = {values[key]}")
+    lines.extend(_settings_lines(values))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
@@ -442,7 +457,7 @@ def generated_jsons(
     candidates.extend(
         path for path in image_path.parent.glob("*.json") if _json_belongs_to_image(path, stem)
     )
-    return sorted(set(candidates), key=lambda p: p.stat().st_mtime, reverse=True)
+    return sorted(set(candidates), key=_mtime_or_zero, reverse=True)
 
 
 def final_output_json(
@@ -479,6 +494,14 @@ def final_output_json(
     return None
 
 
+def _mtime_or_zero(path: Path) -> float:
+    """mtime that tolerates a file the generator replaced or removed mid-scan."""
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
 def geometry_shape_count(path: str | Path) -> int:
     return drawable_shape_count(path)
 
@@ -489,14 +512,14 @@ def best_geometry_jsons(paths: Iterable[str | Path]) -> list[Path]:
         path = Path(path)
         base_name = re.sub(r"\.\d+$", "", path.stem)
         key = str(path.with_name(base_name).resolve()).lower()
-        score = (geometry_shape_count(path), path.stat().st_mtime)
+        score = (geometry_shape_count(path), _mtime_or_zero(path))
         current = best_by_stem.get(key)
         if current is None or score > current[0]:
             best_by_stem[key] = (score, path)
     return [
         item[1]
         for item in sorted(
-            best_by_stem.values(), key=lambda item: item[1].stat().st_mtime, reverse=True
+            best_by_stem.values(), key=lambda item: _mtime_or_zero(item[1]), reverse=True
         )
     ]
 
@@ -521,7 +544,7 @@ def generated_preview_files(image_path: str | Path) -> list[Path]:
     stem = _preview_stem(image_path)
     return sorted(
         PREVIEW_DIR.glob(f"{stem}.preview*.png"),
-        key=lambda p: p.stat().st_mtime,
+        key=_mtime_or_zero,
         reverse=True,
     )
 

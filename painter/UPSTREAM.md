@@ -15,6 +15,11 @@ at commit `75cb365` (v1.9.7, 2026-11-16), used under its MIT licenses (`LICENSE`
 | `src/geometry_json.py` | `NaN`/`Infinity` in a JSON file (accepted by Python's `json`) crashed the whole import in `round()`. | Skip just the bad shape. Test added. |
 | `src/text/fonts.py` | `find_cjk_font()` and `find_font_for_text("")` called each other forever (`RecursionError`), e.g. with a blank font box in the Text tab. | Fall back to the best discovered font, then known system fonts, else a clear `FileNotFoundError`. |
 | `tests/` | Font tests crashed on machines without the Windows fonts; `os.startfile` tests ran on non-Windows. | Skip cleanly instead. |
+| `src/generator_backend.py` | The Custom settings file and saved user presets only wrote a fixed list of keys, so `errorMetric`, `ssimWeight`, `useWorkGroupEval`, `enableMultiPrimitiveShapes`, `randomSampleBudget` and `loadGeometry` from a preset were silently dropped as soon as any value was customised. | Write every key (known ones first). Tests added. |
+| `src/app.py`, `src/generator_backend.py` | Preview/JSON scans sorted by `stat()` while the generator was replacing files, so a file vanishing mid-scan raised `FileNotFoundError` and killed the generation worker. | Tolerate missing files. Removed a JSON rescan every 2 s whose result was never used. |
+| `src/app.py` | Every generated layer adds a log line; the log widget grew without limit and scrolled once per line, slowing the UI on 3,000-layer runs. | Keep the last 5,000 lines (the detailed log keeps everything) and scroll once per batch. |
+| `tests/test_text_layout.py` | The vertical-text test used `"あ\nい"`; a line break starts a new *column* in vertical mode, so the expectation was wrong. | Use `"あい"`. |
+| UI (`app.py`, `app_config.py`) | Refreshed look: new palette with a magenta accent, flat buttons with hover, accent-coloured main actions (Generate / Import / Start), cleaner tabs and cards, slim scrollbars, monospace log. Layout and behaviour are unchanged. | |
 
 None of the memory offsets, signatures or the layer-writing order were changed.
 

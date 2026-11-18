@@ -29,6 +29,9 @@ def test_normalize_writing_mode_falls_back_to_ltr() -> None:
 
 
 def test_vertical_mask_is_taller_than_horizontal_for_japanese_sample() -> None:
+    # One line of two characters: horizontal lays them side by side, vertical
+    # stacks them. (The old sample "あ\nい" has a line break, which starts a new
+    # *column* in vertical mode, so vertical was correctly the wider one.)
     try:
         from text.fonts import find_cjk_font
         from text.geometry import render_text_mask
@@ -37,7 +40,7 @@ def test_vertical_mask_is_taller_than_horizontal_for_japanese_sample() -> None:
     except Exception:
         return
 
-    text = "あ\nい"
+    text = "あい"
     horizontal = render_text_mask(
         text,
         font_path=font_path,

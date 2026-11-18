@@ -33,7 +33,7 @@ if str(ROOT) not in sys.path:
 from fh6_vinyl_resources import load_vinyl_polygons
 from game_profiles import PROFILES
 from geometry_json import RECTANGLE, ROTATED_ELLIPSE, load_normalized_geometry
-from generator_backend import GENERATOR_EXE, GENERATOR_JSON_SCAN_SECONDS, GENERATOR_POLL_SLEEP_SECONDS, GENERATOR_PREVIEW_SCAN_SECONDS, USER_SETTINGS_DIR, best_geometry_jsons, build_generator_command, build_generator_env, final_output_json, generated_jsons, generated_preview_files, generator_output_base, generator_preview_path, load_settings, prepare_generation_copies, preprocess_input_image, write_custom_settings, write_user_settings_preset
+from generator_backend import GENERATOR_EXE, GENERATOR_POLL_SLEEP_SECONDS, GENERATOR_PREVIEW_SCAN_SECONDS, USER_SETTINGS_DIR, best_geometry_jsons, build_generator_command, build_generator_env, final_output_json, _mtime_or_zero, generated_preview_files, generator_output_base, generator_preview_path, load_settings, prepare_generation_copies, preprocess_input_image, write_custom_settings, write_user_settings_preset
 from gpu_devices import device_env_overrides, find_device, find_device_by_label, list_gpu_devices
 from region_painter.state_manager import StateManager
 from region_painter.workflow import (
@@ -142,6 +142,9 @@ FH6_TYPECODE_MARKER_KEYS = (
 
 
 # Removed: TEXT dictionary (now in i18n.py)
+
+
+UI_LOG_MAX_LINES = 5000
 
 
 def ensure_dirs():
@@ -866,6 +869,7 @@ class App:
         self.generation_running = False
         self.current_generator_procs = set()
         self.eta_samples = deque(maxlen=ETA_MAX_PROGRESS_SAMPLES)
+        self._log_scroll_pending = False
         self.eta_display_time = None
         self.eta_smoothed_seconds_per_layer = None
         self.eta_display_remaining = None
@@ -989,75 +993,163 @@ class App:
             style.theme_use("clam")
         except Exception:
             pass
-        style.configure(".", background=Theme.BG, foreground=Theme.TEXT, fieldbackground=Theme.INPUT)
-        style.configure("TFrame", background=Theme.BG)
-        style.configure("TNotebook", background=Theme.BG, borderwidth=0)
-        style.configure("Primary.TNotebook", background=Theme.BG, borderwidth=0, tabmargins=(0, 0, 0, 0))
+        flat = {"bordercolor": Theme.BORDER, "lightcolor": Theme.BORDER, "darkcolor": Theme.BORDER}
         style.configure(
-            "Primary.TNotebook.Tab",
-            padding=(18, 8),
-            font=("Segoe UI", 10, "bold"),
-            background=Theme.PANEL_ALT,
-            foreground=Theme.MUTED,
-            borderwidth=0,
-        )
-        style.map(
-            "Primary.TNotebook.Tab",
-            background=[("selected", Theme.ACCENT_DARK), ("active", Theme.PANEL_ALT)],
-            foreground=[("selected", "#ffffff"), ("active", Theme.TEXT)],
-        )
-        style.configure("Script.TNotebook", background=Theme.BG, borderwidth=0, tabmargins=(0, 0, 0, 0))
-        style.configure(
-            "Script.TNotebook.Tab",
-            padding=(12, 6),
-            font=("Segoe UI", 9, "bold"),
-            background=Theme.PANEL_ALT,
-            foreground=Theme.MUTED,
-            borderwidth=0,
-        )
-        style.map(
-            "Script.TNotebook.Tab",
-            background=[("selected", Theme.ACCENT_DARK), ("active", Theme.PANEL_ALT)],
-            foreground=[("selected", "#ffffff"), ("active", Theme.TEXT)],
-        )
-        style.configure(
-            "TLabelframe",
-            background=Theme.PANEL,
+            ".",
+            background=Theme.BG,
             foreground=Theme.TEXT,
-            bordercolor=Theme.BORDER,
-            lightcolor=Theme.BORDER,
-            darkcolor=Theme.BORDER,
+            fieldbackground=Theme.INPUT,
+            focuscolor=Theme.ACCENT,
+            selectbackground=Theme.ACCENT_DARK,
+            selectforeground="#ffffff",
+            troughcolor=Theme.INPUT,
+            **flat,
         )
+        style.configure("TFrame", background=Theme.BG)
+        for notebook, pad, size in (("Primary", (20, 9), 10), ("Script", (14, 6), 9)):
+            style.configure(
+                f"{notebook}.TNotebook",
+                background=Theme.BG,
+                borderwidth=0,
+                tabmargins=(0, 0, 0, 0),
+                bordercolor=Theme.BG,
+                lightcolor=Theme.BG,
+                darkcolor=Theme.BG,
+            )
+            style.configure(
+                f"{notebook}.TNotebook.Tab",
+                padding=pad,
+                font=(Theme.FONT, size, "bold"),
+                background=Theme.BG,
+                foreground=Theme.MUTED,
+                borderwidth=0,
+                bordercolor=Theme.BG,
+                lightcolor=Theme.BG,
+                darkcolor=Theme.BG,
+                focuscolor=Theme.BG,
+            )
+            style.map(
+                f"{notebook}.TNotebook.Tab",
+                background=[("selected", Theme.ACCENT_DARK), ("active", Theme.PANEL_ALT)],
+                foreground=[("selected", "#ffffff"), ("active", Theme.TEXT)],
+                lightcolor=[("selected", Theme.ACCENT_DARK)],
+                bordercolor=[("selected", Theme.ACCENT_DARK)],
+                expand=[("selected", (0, 0, 0, 0))],
+            )
+        style.configure("TLabelframe", background=Theme.PANEL, relief="solid", borderwidth=1, padding=(10, 6, 10, 10), **flat)
         style.configure(
             "TLabelframe.Label",
             background=Theme.PANEL,
-            foreground=Theme.TEXT,
-            font=("Segoe UI", 10, "bold"),
+            foreground=Theme.ACCENT,
+            font=(Theme.FONT, 10, "bold"),
+            padding=(2, 0),
         )
         style.configure(
             "TCombobox",
             fieldbackground=Theme.INPUT,
-            background=Theme.PANEL_ALT,
+            background=Theme.BUTTON,
             foreground=Theme.TEXT,
-            arrowcolor=Theme.TEXT,
-            bordercolor=Theme.BORDER,
-            lightcolor=Theme.BORDER,
-            darkcolor=Theme.BORDER,
+            arrowcolor=Theme.MUTED,
+            arrowsize=13,
+            padding=(6, 4),
+            **flat,
         )
         style.map(
             "TCombobox",
-            fieldbackground=[("readonly", Theme.INPUT)],
-            foreground=[("readonly", Theme.TEXT)],
-            selectbackground=[("readonly", Theme.ACCENT_DARK)],
-            selectforeground=[("readonly", "#ffffff")],
+            fieldbackground=[("readonly", Theme.INPUT), ("disabled", Theme.PANEL_ALT)],
+            foreground=[("readonly", Theme.TEXT), ("disabled", Theme.MUTED)],
+            background=[("active", Theme.BUTTON_HOVER)],
+            arrowcolor=[("active", Theme.TEXT)],
+            bordercolor=[("focus", Theme.ACCENT_DARK), ("hover", Theme.MUTED)],
+            selectbackground=[("readonly", Theme.INPUT)],
+            selectforeground=[("readonly", Theme.TEXT)],
         )
+        # Dropdown list of every combobox (a plain Tk listbox).
+        self.root.option_add("*TCombobox*Listbox.background", Theme.PANEL_ALT)
+        self.root.option_add("*TCombobox*Listbox.foreground", Theme.TEXT)
+        self.root.option_add("*TCombobox*Listbox.selectBackground", Theme.ACCENT_DARK)
+        self.root.option_add("*TCombobox*Listbox.selectForeground", "#ffffff")
+        self.root.option_add("*TCombobox*Listbox.borderWidth", 0)
+        # Slim, arrow-less scrollbars that brighten under the mouse.
+        for orient in ("Vertical", "Horizontal"):
+            style.layout(
+                f"{orient}.TScrollbar",
+                [(f"{orient}.Scrollbar.trough", {"sticky": "nswe", "children": [
+                    (f"{orient}.Scrollbar.thumb", {"expand": "1", "sticky": "nswe"}),
+                ]})],
+            )
         style.configure(
             "TScrollbar",
-            background=Theme.PANEL_ALT,
-            troughcolor=Theme.BG,
-            bordercolor=Theme.BORDER,
-            arrowcolor=Theme.TEXT,
+            background=Theme.BUTTON_ACTIVE,
+            troughcolor=Theme.PANEL,
+            bordercolor=Theme.PANEL,
+            lightcolor=Theme.BUTTON_ACTIVE,
+            darkcolor=Theme.BUTTON_ACTIVE,
+            gripcount=0,
+            arrowsize=10,
         )
+        style.map(
+            "TScrollbar",
+            background=[("active", Theme.MUTED)],
+            lightcolor=[("active", Theme.MUTED)],
+            darkcolor=[("active", Theme.MUTED)],
+        )
+        style.configure(
+            "Horizontal.TProgressbar",
+            background=Theme.ACCENT_DARK,
+            troughcolor=Theme.INPUT,
+            lightcolor=Theme.ACCENT_DARK,
+            darkcolor=Theme.ACCENT_DARK,
+            bordercolor=Theme.INPUT,
+            thickness=6,
+        )
+        style.configure("TScale", background=Theme.BUTTON_ACTIVE, troughcolor=Theme.INPUT, sliderthickness=14, **flat)
+        style.map("TScale", background=[("active", Theme.ACCENT)])
+        style.configure("TPanedwindow", background=Theme.BG)
+        style.configure("Sash", sashthickness=6, background=Theme.BG, bordercolor=Theme.BG, lightcolor=Theme.BG, darkcolor=Theme.BG)
+        style.configure("TCheckbutton", background=Theme.PANEL, foreground=Theme.TEXT, indicatorbackground=Theme.INPUT, indicatorforeground=Theme.ACCENT)
+        style.map("TCheckbutton", background=[("active", Theme.PANEL)], indicatorbackground=[("selected", Theme.ACCENT_DARK)], indicatorforeground=[("selected", "#ffffff")])
+        style.configure("TRadiobutton", background=Theme.PANEL, foreground=Theme.TEXT, indicatorbackground=Theme.INPUT, indicatorforeground=Theme.ACCENT)
+        style.map("TRadiobutton", background=[("active", Theme.PANEL)], indicatorbackground=[("selected", Theme.ACCENT_DARK)], indicatorforeground=[("selected", "#ffffff")])
+        # Tk buttons only show activebackground while pressed on Windows, so
+        # add a hover state for every themed (flat) button.
+        self.root.bind_class("Button", "<Enter>", self._on_button_enter, add="+")
+        self.root.bind_class("Button", "<Leave>", self._on_button_leave, add="+")
+
+    @staticmethod
+    def _button_colors(widget):
+        """(rest, hover) background of a themed button, or None for custom ones."""
+        if getattr(widget, "_primary", False):
+            return Theme.ACCENT_DARK, Theme.ACCENT_HOVER
+        hover = getattr(widget, "_hover_bg", None)
+        if hover:
+            return getattr(widget, "_rest_bg", None), hover
+        return Theme.BUTTON, Theme.BUTTON_HOVER
+
+    def _on_button_enter(self, event):
+        widget = event.widget
+        try:
+            if str(widget.cget("state")) == "disabled":
+                return
+            rest, hover = self._button_colors(widget)
+            current = widget.cget("bg")
+            # Leave colour swatches and other custom-coloured buttons alone.
+            if rest is not None and current.lower() != rest.lower():
+                return
+            widget._rest_bg = current
+            widget._hover_bg = hover
+            widget.configure(bg=hover)
+        except (TclError, AttributeError):
+            pass
+
+    def _on_button_leave(self, event):
+        widget = event.widget
+        try:
+            rest = getattr(widget, "_rest_bg", None)
+            if rest and widget.cget("bg") == getattr(widget, "_hover_bg", None):
+                widget.configure(bg=rest)
+        except (TclError, AttributeError):
+            pass
 
     def _register_process(self, proc):
         with self.process_lock:
@@ -1136,53 +1228,59 @@ class App:
         self.translated.append((widget, key, "text"))
         return widget
 
-    def _button(self, parent, key, command, **kwargs):
-        kwargs.setdefault("bg", Theme.BUTTON)
-        kwargs.setdefault("fg", Theme.TEXT)
+    def _button(self, parent, key, command, primary=False, **kwargs):
+        """Flat themed button; *primary* marks the main action of a page."""
+        kwargs.setdefault("bg", Theme.ACCENT_DARK if primary else Theme.BUTTON)
+        kwargs.setdefault("fg", "#ffffff" if primary else Theme.TEXT)
         kwargs.setdefault("disabledforeground", Theme.MUTED)
-        kwargs.setdefault("activebackground", Theme.BUTTON_ACTIVE)
-        kwargs.setdefault("activeforeground", Theme.TEXT)
+        kwargs.setdefault("activebackground", Theme.ACCENT_HOVER if primary else Theme.BUTTON_ACTIVE)
+        kwargs.setdefault("activeforeground", "#ffffff" if primary else Theme.TEXT)
         kwargs.setdefault("relief", "flat")
         kwargs.setdefault("bd", 0)
-        kwargs.setdefault("highlightthickness", 1)
-        kwargs.setdefault("highlightbackground", Theme.BORDER)
-        kwargs.setdefault("highlightcolor", Theme.ACCENT)
-        kwargs.setdefault("padx", 8)
-        kwargs.setdefault("pady", 3)
+        kwargs.setdefault("highlightthickness", 0)
+        kwargs.setdefault("padx", 14)
+        kwargs.setdefault("pady", 5)
+        kwargs.setdefault("cursor", "hand2")
+        kwargs.setdefault("font", (Theme.FONT, 10, "bold" if primary else "normal"))
         widget = Button(parent, text=tr(self.lang, key), command=command, **kwargs)
+        widget._primary = primary
         self.translated.append((widget, key, "text"))
         return widget
 
     def _build_market_banner(self, parent):
-        banner = Frame(parent, bg=Theme.ACCENT_DARK, highlightthickness=1, highlightbackground=Theme.ACCENT)
+        banner = Frame(parent, bg=Theme.PANEL_ALT, highlightthickness=0)
         banner._keep_custom_theme = True
         banner.pack(fill=X, padx=0, pady=(10, 0))
+        Frame(banner, bg=Theme.ACCENT, width=4).pack(side=LEFT, fill="y")
         message = Label(
             banner,
             text=tr(self.lang, "market_banner"),
-            bg=Theme.ACCENT_DARK,
-            fg="#ffffff",
+            bg=Theme.PANEL_ALT,
+            fg=Theme.TEXT,
             anchor="w",
             justify=LEFT,
-            font=("Segoe UI", 11, "bold"),
+            font=(Theme.FONT, 11, "bold"),
         )
-        message.pack(side=LEFT, fill=X, expand=True, padx=12, pady=8)
+        message.pack(side=LEFT, fill=X, expand=True, padx=12, pady=10)
         self.translated.append((message, "market_banner", "text"))
         button = Button(
             banner,
             text=tr(self.lang, "open_market"),
             command=self.open_preset_market,
             bg=Theme.WARN,
-            fg="#0d1117",
+            fg="#14161a",
             activebackground="#ffe08a",
-            activeforeground="#0d1117",
+            activeforeground="#14161a",
             relief="flat",
             bd=0,
-            padx=12,
-            pady=4,
-            font=("Segoe UI", 10, "bold"),
+            highlightthickness=0,
+            padx=14,
+            pady=5,
+            font=(Theme.FONT, 10, "bold"),
             cursor="hand2",
         )
+        button._rest_bg = Theme.WARN
+        button._hover_bg = "#ffe08a"
         button.pack(side=RIGHT, padx=10, pady=8)
         self.translated.append((button, "open_market", "text"))
         return banner
@@ -1219,16 +1317,17 @@ class App:
                 else:
                     widget.configure(bg=self._parent_bg(widget.master), fg=self._mapped_label_color(widget.cget("fg")))
             elif isinstance(widget, Button):
+                primary = getattr(widget, "_primary", False)
                 widget.configure(
-                    bg=Theme.BUTTON,
-                    fg=Theme.TEXT,
+                    bg=Theme.ACCENT_DARK if primary else Theme.BUTTON,
+                    fg="#ffffff" if primary else Theme.TEXT,
                     disabledforeground=Theme.MUTED,
-                    activebackground=Theme.BUTTON_ACTIVE,
-                    activeforeground=Theme.TEXT,
+                    activebackground=Theme.ACCENT_HOVER if primary else Theme.BUTTON_ACTIVE,
+                    activeforeground="#ffffff" if primary else Theme.TEXT,
                     relief="flat",
                     bd=0,
-                    highlightbackground=Theme.BORDER,
-                    highlightcolor=Theme.ACCENT,
+                    highlightthickness=0,
+                    cursor="hand2",
                 )
             elif isinstance(widget, Checkbutton):
                 widget.configure(
@@ -1239,8 +1338,8 @@ class App:
                     activeforeground=Theme.TEXT,
                     selectcolor=Theme.INPUT,
                     relief="flat",
-                    highlightbackground=Theme.BORDER,
-                    highlightcolor=Theme.ACCENT,
+                    highlightthickness=0,
+                    cursor="hand2",
                 )
             elif isinstance(widget, Entry):
                 widget.configure(
@@ -1253,7 +1352,7 @@ class App:
                     relief="flat",
                     highlightthickness=1,
                     highlightbackground=Theme.BORDER,
-                    highlightcolor=Theme.ACCENT,
+                    highlightcolor=Theme.ACCENT_DARK,
                 )
             elif isinstance(widget, Listbox):
                 widget.configure(
@@ -1261,8 +1360,10 @@ class App:
                     fg=Theme.TEXT,
                     selectbackground=Theme.ACCENT_DARK,
                     selectforeground="#ffffff",
+                    activestyle="none",
                     highlightthickness=1,
                     highlightbackground=Theme.BORDER,
+                    highlightcolor=Theme.ACCENT_DARK,
                     relief="flat",
                 )
             elif isinstance(widget, Text):
@@ -1274,7 +1375,10 @@ class App:
                     selectforeground="#ffffff",
                     highlightthickness=1,
                     highlightbackground=Theme.BORDER,
+                    highlightcolor=Theme.ACCENT_DARK,
                     relief="flat",
+                    padx=8,
+                    pady=6,
                 )
             elif isinstance(widget, Canvas):
                 widget.configure(bg=Theme.PANEL, highlightthickness=0)
@@ -1285,13 +1389,16 @@ class App:
 
     def _build(self):
         self._configure_styles()
+        accent_strip = Frame(self.root, bg=Theme.ACCENT_DARK, height=3)
+        accent_strip._keep_custom_theme = True
+        accent_strip.pack(fill=X)
         header = Frame(self.root)
-        header.pack(fill=X, padx=14, pady=(12, 6))
+        header.pack(fill=X, padx=16, pady=(14, 6))
 
         # Title row: title on the left, language selector on the right
         title_row = Frame(header)
         title_row.pack(fill=X)
-        self._label(title_row, "title", font=("Segoe UI", 18, "bold")).pack(side=LEFT)
+        self._label(title_row, "title", font=(Theme.FONT, 20, "bold")).pack(side=LEFT)
         self.update_indicator = Label(
             title_row,
             text="",
@@ -1315,7 +1422,7 @@ class App:
         self._label(subtitle_row, "subtitle", fg=Theme.MUTED).pack(side=LEFT)
 
         process_bar = Frame(self.root)
-        process_bar.pack(fill=X, padx=14, pady=(0, 8))
+        process_bar.pack(fill=X, padx=16, pady=(2, 10))
         self._label(process_bar, "process").pack(side=LEFT)
         self.process_combo = ttk.Combobox(process_bar, textvariable=self.selected_pid, state="readonly", width=44)
         self.process_combo.pack(side=LEFT, padx=8)
@@ -1521,7 +1628,7 @@ class App:
         # Pack log area BEFORE Notebook so side=BOTTOM widgets claim space first
         self._build_log()
         # Notebook fills remaining space between header/process-bar and log area
-        self.tabs.pack(fill=BOTH, expand=True, padx=14, pady=(0, 8))
+        self.tabs.pack(fill=BOTH, expand=True, padx=16, pady=(0, 8))
         self._apply_dark_theme_recursive(self.root)
         self.tabs.bind("<<NotebookTabChanged>>", self._on_main_tab_changed)
         self.text_vinyl.refresh_fonts(full_rescan=False)
@@ -1711,7 +1818,7 @@ class App:
         self._label(step3, "generate_step_run_hint", anchor="w", justify=LEFT, wraplength=540).pack(fill=X, padx=10, pady=(8, 4))
         actions = Frame(step3)
         actions.pack(fill=X, padx=10, pady=(4, 12))
-        self.generate_button = self._button(actions, "start_generate", self.start_generate, font=("Segoe UI", 12, "bold"), height=2)
+        self.generate_button = self._button(actions, "start_generate", self.start_generate, primary=True, font=(Theme.FONT, 12, "bold"), height=2)
         self.generate_button.pack(side=LEFT, fill=X, expand=True)
         self.stop_generate_button = self._button(actions, "stop_generate", self.stop_generate, height=2, state="disabled")
         self.stop_generate_button.pack(side=LEFT, padx=8)
@@ -1942,7 +2049,7 @@ class App:
         step4.pack(fill=X)
         actions = Frame(step4)
         actions.pack(fill=X, padx=10, pady=(8, 4))
-        self.region_first_pass_btn = self._button(actions, "region_start_first_pass", self._region_start_first_pass, font=("Segoe UI", 11, "bold"), height=2)
+        self.region_first_pass_btn = self._button(actions, "region_start_first_pass", self._region_start_first_pass, primary=True, font=(Theme.FONT, 11, "bold"), height=2)
         self.region_first_pass_btn.pack(side=LEFT, fill=X, expand=True)
         self.region_paint_btn = self._button(actions, "region_paint_region", self._region_start_pass, height=2, state="disabled")
         self.region_paint_btn.pack(side=LEFT, padx=6, fill=X, expand=True)
@@ -2924,7 +3031,7 @@ class App:
                         next_preview_scan = now + GENERATOR_PREVIEW_SCAN_SECONDS
                         preview_files = sorted(
                             output_dir.glob("_exe_preview*.png"),
-                            key=lambda p: p.stat().st_mtime, reverse=True,
+                            key=_mtime_or_zero, reverse=True,
                         )
                         if preview_files:
                             newest = preview_files[0]
@@ -3074,7 +3181,7 @@ class App:
                         next_preview_scan = now + GENERATOR_PREVIEW_SCAN_SECONDS
                         preview_files = sorted(
                             output_dir.glob("_exe_preview*.png"),
-                            key=lambda p: p.stat().st_mtime, reverse=True,
+                            key=_mtime_or_zero, reverse=True,
                         )
                         if preview_files:
                             newest = preview_files[0]
@@ -3338,7 +3445,7 @@ class App:
         self._label(step4, "admin_note", anchor="w", justify=LEFT, wraplength=500, fg="#8a5300").pack(fill=X, padx=10, pady=4)
         actions = Frame(step4)
         actions.pack(fill=X, padx=10, pady=12)
-        self._button(actions, "import_json", self.start_import, font=("Segoe UI", 13, "bold"), height=2).pack(side=LEFT, fill=X, expand=True)
+        self._button(actions, "import_json", self.start_import, primary=True, font=(Theme.FONT, 13, "bold"), height=2).pack(side=LEFT, fill=X, expand=True)
         self.advanced_button = self._button(actions, "show_advanced", self.toggle_advanced)
         self.advanced_button.pack(side=LEFT, padx=(8, 0))
 
@@ -3422,11 +3529,11 @@ class App:
         self._update_tutorial()
 
     def _build_log(self):
-        self.log = Text(self.root, height=9)
-        self.log.pack(side=BOTTOM, fill=BOTH, padx=14, pady=(0, 12))
+        self.log = Text(self.root, height=9, font=(Theme.MONO, 9), wrap="word")
+        self.log.pack(side=BOTTOM, fill=BOTH, padx=16, pady=(0, 14))
         row = Frame(self.root)
-        row.pack(side=BOTTOM, fill=X, padx=14)
-        self._label(row, "logs", anchor="w").pack(side=LEFT)
+        row.pack(side=BOTTOM, fill=X, padx=16, pady=(0, 6))
+        self._label(row, "logs", anchor="w", font=(Theme.FONT, 10, "bold")).pack(side=LEFT)
         self._button(row, "export_logs", self.export_detailed_log).pack(side=RIGHT)
         self.full_shape_report_button = self._button(row, "export_full_shape_report", self.export_full_shape_report, state="disabled")
         self.full_shape_report_button.pack(side=RIGHT, padx=(0, 8))
@@ -3711,7 +3818,19 @@ class App:
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         self._record_detail(f"UI: {message}")
         self.log.insert(END, f"[{timestamp}] {message}\n")
-        self.log.see(END)
+        # A long run logs every layer: keep the widget bounded (the full text
+        # stays in the detailed log) and scroll once per batch, not per line.
+        lines = int(self.log.index("end-1c").split(".")[0])
+        if lines > UI_LOG_MAX_LINES:
+            self.log.delete("1.0", f"{lines - UI_LOG_MAX_LINES + 1}.0")
+        if not self._log_scroll_pending:
+            self._log_scroll_pending = True
+            self.root.after_idle(self._scroll_log_to_end)
+
+    def _scroll_log_to_end(self):
+        self._log_scroll_pending = False
+        if not self.closed:
+            self.log.see(END)
 
     def _record_detail(self, message):
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -4721,7 +4840,6 @@ class App:
             return "stopped"
         self._register_generator_proc(proc)
 
-        last_preview = None
         last_preview_mtime = None
         last_generator_message = None
         output_queue = queue.Queue()
@@ -4752,7 +4870,6 @@ class App:
                 )
 
         next_preview_scan = 0.0
-        next_json_scan = 0.0
 
         try:
             while proc.poll() is None:
@@ -4769,15 +4886,15 @@ class App:
                     preview_files = generated_preview_files(source_image)
                     if preview_files:
                         newest_preview = preview_files[0]
-                        preview_mtime = newest_preview.stat().st_mtime
+                        try:
+                            preview_mtime = newest_preview.stat().st_mtime
+                        except OSError:
+                            # Replaced or removed by the generator mid-scan;
+                            # the next scan picks up the new file.
+                            preview_mtime = last_preview_mtime
                         if preview_mtime != last_preview_mtime:
                             last_preview_mtime = preview_mtime
                             self.queue.put(("preview_file", newest_preview))
-                if now >= next_json_scan:
-                    next_json_scan = now + GENERATOR_JSON_SCAN_SECONDS
-                    newest = generated_jsons(source_image)
-                    if newest and newest[0] != last_preview:
-                        last_preview = newest[0]
                 time.sleep(GENERATOR_POLL_SLEEP_SECONDS)
             if self.shutdown_event.is_set():
                 return "stopped"

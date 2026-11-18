@@ -26,7 +26,7 @@ class TextVinylThemeAdapter:
             "muted": Theme.MUTED,
             "info": Theme.ACCENT,
             "text": Theme.TEXT,
-            "success": "#3fb950",
+            "success": Theme.SUCCESS,
             "error": Theme.WARN,
         }
         return mapping.get(str(role or "").lower(), Theme.TEXT)

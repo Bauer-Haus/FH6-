@@ -1,13 +1,13 @@
 package render
 
 import (
+	"bytes"
 	"image"
-	"image/color"
 	"image/png"
 	"math"
-	"os"
 
 	"forza-painter-geometrize-go/internal/model"
+	"forza-painter-geometrize-go/internal/output"
 )
 
 func ApplyShape(dst []float32, mask []uint8, width, height int, c model.Candidate) {
@@ -123,24 +123,20 @@ func applyPixels(dst []float32, mask []uint8, width, height, xMin, xMax, yMin, y
 }
 
 func SavePNG(path string, pix []float32, width, height int) error {
+	// Filling Pix directly (same layout and premultiplied values as SetRGBA)
+	// avoids a per-pixel call. Previews are rewritten often during a run, so
+	// they favour encode speed over file size.
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			idx := (y*width + x) * 4
-			img.SetRGBA(x, y, color.RGBA{
-				R: toByte(pix[idx+0]),
-				G: toByte(pix[idx+1]),
-				B: toByte(pix[idx+2]),
-				A: toByte(pix[idx+3]),
-			})
-		}
+	n := width * height * 4
+	for i := 0; i < n; i++ {
+		img.Pix[i] = toByte(pix[i])
 	}
-	f, err := os.Create(path)
-	if err != nil {
+	var buf bytes.Buffer
+	enc := png.Encoder{CompressionLevel: png.BestSpeed}
+	if err := enc.Encode(&buf, img); err != nil {
 		return err
 	}
-	defer f.Close()
-	return png.Encode(f, img)
+	return output.WriteFileAtomic(path, buf.Bytes())
 }
 
 func toByte(v float32) uint8 {
