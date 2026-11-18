@@ -15,6 +15,7 @@ layout(push_constant) uniform Params {
     int height;
     int sampleStep;
     int candidateCount;
+    int sampleBudget;
 };
 
 shared float l_data[256 * 18];
@@ -63,9 +64,6 @@ void main() {
     xMax = min(width - 1, xMax);
     yMax = min(height - 1, yMax);
 
-    int bw = max(xMax - xMin + 1, 1);
-    int totalCells = bw * max(yMax - yMin + 1, 1);
-
     int N   = 0;
     int Nt  = 0;
     float sTR  = 0.0; float sTG  = 0.0; float sTB  = 0.0; float sTA  = 0.0;
@@ -74,60 +72,70 @@ void main() {
     float sTCR = 0.0; float sTCG = 0.0; float sTCB = 0.0; float sTCA = 0.0;
 
     int sampleStride = max(sampleStep, 1);
+    // Adaptive sampling (random stage only): see kernels.go.
+    if (sampleBudget > 0) {
+        float area = (shapeType == 1) ? 3.14159265 * rx * ry : 4.0 * rx * ry;
+        sampleStride = max(sampleStride, int(floor(sqrt(area / float(sampleBudget)))));
+    }
 
-    for (int ci = int(lid); ci < totalCells; ci += 256) {
-        int ly = ci / bw;
-        int lx = ci % bw;
-        int x = xMin + lx;
-        int y = yMin + ly;
+    // 16x16 tiling of the sampled grid; no per-pixel division (see kernels.go).
+    int lx = int(gl_LocalInvocationID.x);
+    int ly = int(gl_LocalInvocationID.y);
+    int colStep = 16 * sampleStride;
 
-        if (((x - xMin) % sampleStride) != 0 || ((y - yMin) % sampleStride) != 0) {
-            continue;
-        }
+    float qa  = cos2 * invRX2 + sin2 * invRY2;
+    float qbk = 2.0 * cosT * sinT * (invRX2 - invRY2);
+    float qck = sin2 * invRX2 + cos2 * invRY2;
 
-        float dx = (float(x) + 0.5) - cx;
+    for (int y = yMin + ly * sampleStride; y <= yMax; y += colStep) {
         float dy = (float(y) + 0.5) - cy;
-        float xr = dx * cosT + dy * sinT;
-        float yr = -dx * sinT + dy * cosT;
-        bool inside = false;
+        int x0 = xMin;
+        int x1 = xMax;
         if (shapeType == 1) {
-            inside = (xr * xr * invRX2 + yr * yr * invRY2 <= 1.0);
-        } else if (shapeType == 2) {
-            if (yr >= -ry && yr <= ry) {
-                float halfWidth = rx * (yr + ry) / (2.0 * ry);
-                inside = (abs(xr) <= halfWidth);
+            float qb = qbk * dy;
+            float qc = qck * dy * dy - 1.0;
+            float sq = sqrt(max(qb * qb - 4.0 * qa * qc, 0.0));
+            float inv2a = 0.5 / qa;
+            x0 = max(xMin, int(floor((-qb - sq) * inv2a + cx - 0.5)) - 1);
+            x1 = min(xMax, int(ceil((-qb + sq) * inv2a + cx - 0.5)) + 1);
+        }
+        int x = xMin + lx * sampleStride;
+        if (x < x0) {
+            x += ((x0 - x + colStep - 1) / colStep) * colStep;
+        }
+        for (; x <= x1; x += colStep) {
+            float dx = (float(x) + 0.5) - cx;
+            float xr = dx * cosT + dy * sinT;
+            float yr = -dx * sinT + dy * cosT;
+            bool inside = false;
+            if (shapeType == 1) {
+                inside = (xr * xr * invRX2 + yr * yr * invRY2 <= 1.0);
+            } else if (shapeType == 2) {
+                if (yr >= -ry && yr <= ry) {
+                    float halfWidth = rx * (yr + ry) / (2.0 * ry);
+                    inside = (abs(xr) <= halfWidth);
+                }
+            } else {
+                inside = (abs(xr) <= rx && abs(yr) <= ry);
             }
-        } else {
-            inside = (abs(xr) <= rx && abs(yr) <= ry);
+            if (!inside) {
+                continue;
+            }
+            int p = y * width + x;
+            if ((mask[p >> 5] & (1u << (uint(p) & 31u))) == 0u) {
+                Nt++;
+                continue;
+            }
+            vec4 t = target[p];
+            vec4 s = current[p];
+            sTR += t.x; sTG += t.y; sTB += t.z; sTA += t.w;
+            sCR += s.x; sCG += s.y; sCB += s.z; sCA += s.w;
+            sCR2 += s.x * s.x; sCG2 += s.y * s.y;
+            sCB2 += s.z * s.z; sCA2 += s.w * s.w;
+            sTCR += t.x * s.x; sTCG += t.y * s.y;
+            sTCB += t.z * s.z; sTCA += t.w * s.w;
+            N++;
         }
-        if (!inside) {
-            continue;
-        }
-        int p = y * width + x;
-        if ((mask[p >> 5] & (1u << (uint(p) & 31u))) == 0u) {
-            Nt++;
-            continue;
-        }
-
-		vec4 t = target[p];
-		vec4 s = current[p];
-
-		float tr = t.x;
-		float tg = t.y;
-		float tb = t.z;
-		float ta = t.w;
-		float sr = s.x;
-		float sg = s.y;
-		float sb = s.z;
-		float sa = s.w;
-
-        sTR += tr; sTG += tg; sTB += tb; sTA += ta;
-        sCR += sr; sCG += sg; sCB += sb; sCA += sa;
-        sCR2 += sr * sr; sCG2 += sg * sg;
-        sCB2 += sb * sb; sCA2 += sa * sa;
-        sTCR += tr * sr; sTCG += tg * sg;
-        sTCB += tb * sb; sTCA += ta * sa;
-        N++;
     }
 
     int off = int(lid) * 18;
@@ -166,7 +174,8 @@ void main() {
     sCR2= l_data[10]; sCG2= l_data[11]; sCB2= l_data[12]; sCA2= l_data[13];
     sTCR= l_data[14]; sTCG= l_data[15]; sTCB= l_data[16]; sTCA= l_data[17];
 
-    if (N == 0 || Nt > 64 || Nt * 400 > N) {
+    float s2 = float(sampleStride * sampleStride);
+    if (N == 0 || float(Nt) * s2 > 64.0 || Nt * 400 > N) {
         results[gid] = vec4(3.402823466e+38, 0.0, 0.0, 0.0);
         return;
     }
@@ -198,7 +207,7 @@ void main() {
 
     if (Nt > 0) {
         float spillFrac = float(Nt) / float(N + Nt);
-        totalDelta += a2 * float(Nt) * (1.0 + 2.0 * spillFrac) * (oR*oR + oG*oG + oB*oB + 1.0);
+        totalDelta += a2 * (float(Nt) * s2) * (1.0 + 2.0 * spillFrac) * (oR*oR + oG*oG + oB*oB + 1.0);
     }
 
     results[gid] = vec4(totalDelta, oR, oG, oB);

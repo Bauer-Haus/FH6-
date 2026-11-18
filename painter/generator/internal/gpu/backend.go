@@ -63,6 +63,9 @@ type Backend interface {
 	Close() error
 	SetUseWorkGroupEval(bool)
 	SetSampleStep(int)
+	// SetSampleBudget > 0 enables adaptive sampling for following
+	// evaluations (used for the random stage only); 0 scores every pixel.
+	SetSampleBudget(int)
 	SetErrorMetric(string)
 	SetSsimWeight(float32)
 	SubmitSsimMap() error

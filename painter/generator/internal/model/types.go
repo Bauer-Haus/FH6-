@@ -24,6 +24,7 @@ type Settings struct {
 	LoadGeometry                  string
 	ErrorMetric                   string
 	SsimWeight                    float32
+	RandomSampleBudget            int
 }
 
 type Shape struct {

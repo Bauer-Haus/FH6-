@@ -586,6 +586,7 @@ type vulkanBackend struct {
 	submitMu sync.Mutex
 
 	useWorkGroupEval bool
+	sampleBudget     int
 	sampleStep       int
 
 	evalSlots    [ringSize]vkEvalSlot
@@ -967,6 +968,7 @@ func (v *vulkanBackend) Flush() error {
 }
 
 func (v *vulkanBackend) SetUseWorkGroupEval(val bool) { v.useWorkGroupEval = val }
+func (v *vulkanBackend) SetSampleBudget(n int)        { v.sampleBudget = n }
 func (v *vulkanBackend) SetSampleStep(val int)        { v.sampleStep = val }
 
 // SetErrorMetric is a no-op on Vulkan — SSIM is only supported via OpenCL.
@@ -1050,7 +1052,8 @@ func (v *vulkanBackend) SubmitEval(cands []model.Candidate) (EvalTicket, error) 
 	C.rawVkCmdBindPipeline(cmdBuf, C.VK_PIPELINE_BIND_POINT_COMPUTE, pipeline)
 	ds := v.evalDs[slot]
 	C.rawVkCmdBindDescriptorSets(cmdBuf, C.VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &ds)
-	pc := [4]int32{int32(v.width), int32(v.height), int32(v.sampleStep), int32(count)}
+	// eval_v3 reads the first four fields; eval_v4 also reads sampleBudget.
+	pc := [5]int32{int32(v.width), int32(v.height), int32(v.sampleStep), int32(count), int32(v.sampleBudget)}
 	C.rawVkCmdPushConstants(cmdBuf, layout, C.VK_SHADER_STAGE_COMPUTE_BIT, 0, C.uint32_t(unsafe.Sizeof(pc)), unsafe.Pointer(&pc[0]))
 	C.rawVkCmdDispatch(cmdBuf, C.uint32_t(dispatchX), C.uint32_t(dispatchY), 1)
 

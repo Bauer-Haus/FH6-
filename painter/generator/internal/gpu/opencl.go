@@ -45,6 +45,9 @@ type Evaluator struct {
 	UseWorkGroupEval bool
 
 	SampleStep int
+	// SampleBudget > 0 lets evaluate_candidates_v4 judge large candidates
+	// from about this many sampled pixels (see kernels.go).
+	SampleBudget int
 
 	// wgSize is the work-group size for evaluate_candidates_v4 (16×16).
 	wgSize int
@@ -653,6 +656,7 @@ func (e *Evaluator) SubmitEval(cands []model.Candidate) (EvalTicket, error) {
 			int32(e.width),
 			int32(e.height),
 			int32(e.SampleStep),
+			int32(e.SampleBudget),
 		); err != nil {
 			return EvalTicket{}, err
 		}
@@ -983,6 +987,7 @@ func (e *Evaluator) ResetCurrentBuffer(current []float32) error {
 
 func (e *Evaluator) SetUseWorkGroupEval(v bool) { e.UseWorkGroupEval = v }
 func (e *Evaluator) SetSampleStep(v int)        { e.SampleStep = v }
+func (e *Evaluator) SetSampleBudget(v int)      { e.SampleBudget = v }
 
 // SetErrorMetric configures the error metric used by the evaluator.
 // Valid values are "mse" (default) and "ssim".

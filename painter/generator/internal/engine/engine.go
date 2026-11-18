@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"forza-painter-geometrize-go/internal/config"
@@ -182,6 +184,7 @@ func Run(opts Options) error {
 	fmt.Println("Pipeline: async (in-order queue, ring=3; sampler 1-shape stale)")
 	fmt.Println("Scoring mode: DeltaE with GPU-computed optimal color (negative = better)")
 
+	prof := newPhaseProfiler()
 	consecutiveNoImprove := 0
 	finalPruneAttempts := 0
 	lastPrunedMilestone := 0
@@ -204,13 +207,27 @@ func Run(opts Options) error {
 		// fmt.Printf("[%d/%d] Scoring sample step: %d\n",
 		// 	step, cfg.StopAt, evaluator.SampleStep)
 
+		tPhase := time.Now()
 		randomCands := randomCandidates(rng, prepared, cfg.RandomSamples, cfg.ForceOpaqueShapes, cfg.EnableMultiPrimitiveShapes, sampler, progress)
 
 		fmt.Printf("[%d/%d] Evaluating random sample batch on GPU (%d)...\n", step, cfg.StopAt, len(randomCands))
+		prof.add(0, &tPhase)
+		// Random stage: rough ranking only, so big shapes may be sampled.
+		// The hill climb and the final re-evaluation score every pixel.
+		evaluator.SetSampleBudget(cfg.RandomSampleBudget)
 		best, bestScore, err := submitAndPickBest(evaluator, randomCands, acceptedShapes)
+		evaluator.SetSampleBudget(0)
 		if err != nil {
 			return err
 		}
+		if cfg.RandomSampleBudget > 0 && bestScore < 0 {
+			// Re-score the winner exactly so the climb starts from a true score.
+			best, bestScore, err = submitAndPickBest(evaluator, []model.Candidate{best}, acceptedShapes)
+			if err != nil {
+				return err
+			}
+		}
+		prof.add(1, &tPhase)
 		// The hill climb must compare candidates the same way the random
 		// pick did: raw score plus the large-shape penalty. Comparing raw
 		// scores let the climb grow shapes past the penalty threshold.
@@ -233,6 +250,7 @@ func Run(opts Options) error {
 					improved++
 				}
 			}
+			prof.add(2, &tPhase)
 			fmt.Printf("[%d/%d] Hill climb best delta after %d rounds: %.6f (%d improvement(s))\n",
 				step, cfg.StopAt, hillClimbRounds, bestScore, improved)
 		}
@@ -402,6 +420,8 @@ func Run(opts Options) error {
 			}
 		}
 
+		prof.add(3, &tPhase)
+		prof.step(acceptedShapes)
 		fmt.Printf("[%d/%d] Step completed in %s\n", acceptedShapes, cfg.StopAt, time.Since(stepStart).Round(time.Millisecond))
 	}
 
@@ -432,6 +452,43 @@ func Run(opts Options) error {
 	}
 
 	return nil
+}
+
+// phaseProfiler prints where each layer's time goes when FPG_PROFILE=1:
+// CPU candidate generation, random-batch evaluation, hill climb, and the
+// rest (final re-eval, apply, grid, saves). Off by default.
+type phaseProfiler struct {
+	on    bool
+	total [4]time.Duration
+	steps int
+}
+
+func newPhaseProfiler() *phaseProfiler {
+	return &phaseProfiler{on: os.Getenv("FPG_PROFILE") == "1"}
+}
+
+func (p *phaseProfiler) add(i int, since *time.Time) {
+	if !p.on {
+		return
+	}
+	now := time.Now()
+	p.total[i] += now.Sub(*since)
+	*since = now
+}
+
+func (p *phaseProfiler) step(accepted int) {
+	if !p.on {
+		return
+	}
+	p.steps++
+	if p.steps%10 == 0 {
+		n := time.Duration(p.steps)
+		fmt.Printf("[profile @%d] per layer: candidates %s | random eval %s | hill climb %s | rest %s\n", accepted,
+			(p.total[0] / n).Round(time.Microsecond), (p.total[1] / n).Round(time.Microsecond),
+			(p.total[2] / n).Round(time.Microsecond), (p.total[3] / n).Round(time.Microsecond))
+		p.total = [4]time.Duration{}
+		p.steps = 0
+	}
 }
 
 func seedValue(seed int64) int64 {
@@ -555,8 +612,40 @@ func (s *errorSampler) sample(rng *rand.Rand) (float32, float32) {
 // angle) is randomized; color is left zero because the GPU evaluator
 // computes the optimal color analytically and writes it back in the
 // EvalResult.
+// candidateChunks is fixed (not the core count) so a given -seed produces
+// the same candidates on every machine.
+const candidateChunks = 16
+
+// randomCandidates builds the random batch on all CPU cores. Each chunk has
+// its own RNG seeded from rng, and the sampler is read-only, so chunks are
+// independent. On one core this was ~50 ms per layer at 350k candidates,
+// time during which the GPU sat idle.
 func randomCandidates(rng *rand.Rand, prepared *imageutil.PreparedImage, count int, forceOpaque, enableMultiPrimitive bool, sampler *errorSampler, progress float32) []model.Candidate {
-	out := make([]model.Candidate, 0, count)
+	if count < 4096 {
+		return randomCandidatesInto(make([]model.Candidate, 0, count), rng, prepared, count, forceOpaque, enableMultiPrimitive, sampler, progress)
+	}
+	out := make([]model.Candidate, count)
+	seeds := make([]int64, candidateChunks)
+	for i := range seeds {
+		seeds[i] = rng.Int63()
+	}
+	var wg sync.WaitGroup
+	for c := 0; c < candidateChunks; c++ {
+		lo := count * c / candidateChunks
+		hi := count * (c + 1) / candidateChunks
+		wg.Add(1)
+		go func(c, lo, hi int) {
+			defer wg.Done()
+			r := rand.New(rand.NewSource(seeds[c]))
+			// Appending into out[lo:lo:hi] fills that chunk in place.
+			randomCandidatesInto(out[lo:lo:hi], r, prepared, hi-lo, forceOpaque, enableMultiPrimitive, sampler, progress)
+		}(c, lo, hi)
+	}
+	wg.Wait()
+	return out
+}
+
+func randomCandidatesInto(out []model.Candidate, rng *rand.Rand, prepared *imageutil.PreparedImage, count int, forceOpaque, enableMultiPrimitive bool, sampler *errorSampler, progress float32) []model.Candidate {
 	w := float32(prepared.Width)
 	h := float32(prepared.Height)
 	diag := float32(math.Sqrt(float64(prepared.Width*prepared.Width) + float64(prepared.Height*prepared.Height)))
@@ -679,20 +768,51 @@ func submitAndPickBest(e gpu.Backend, cands []model.Candidate, acceptedShapes in
 	if len(results) == 0 {
 		return model.Candidate{}, 0, fmt.Errorf("no candidate scores returned")
 	}
-	bestIdx := 0
-	bestAdjusted := results[0].Score + scaleCompatibilityPenalty(cands[0], acceptedShapes)
-	for i := 1; i < len(results); i++ {
-		adjusted := results[i].Score + scaleCompatibilityPenalty(cands[i], acceptedShapes)
-		if adjusted < bestAdjusted {
-			bestAdjusted = adjusted
-			bestIdx = i
-		}
-	}
+	bestIdx := pickBestIndex(results, cands, acceptedShapes)
 	best := cands[bestIdx]
 	best.R = results[bestIdx].R
 	best.G = results[bestIdx].G
 	best.B = results[bestIdx].B
 	return best, results[bestIdx].Score, nil
+}
+
+// pickBestIndex returns the index with the lowest score + size penalty,
+// scanning large batches on all cores. Ties keep the lowest index, matching
+// the original serial scan.
+func pickBestIndex(results []gpu.EvalResult, cands []model.Candidate, acceptedShapes int) int {
+	scan := func(lo, hi int) (int, float32) {
+		bi := lo
+		ba := results[lo].Score + scaleCompatibilityPenalty(cands[lo], acceptedShapes)
+		for i := lo + 1; i < hi; i++ {
+			if a := results[i].Score + scaleCompatibilityPenalty(cands[i], acceptedShapes); a < ba {
+				ba, bi = a, i
+			}
+		}
+		return bi, ba
+	}
+	n := len(results)
+	if n < 8192 {
+		i, _ := scan(0, n)
+		return i
+	}
+	idx := make([]int, candidateChunks)
+	adj := make([]float32, candidateChunks)
+	var wg sync.WaitGroup
+	for c := 0; c < candidateChunks; c++ {
+		wg.Add(1)
+		go func(c int) {
+			defer wg.Done()
+			idx[c], adj[c] = scan(n*c/candidateChunks, n*(c+1)/candidateChunks)
+		}(c)
+	}
+	wg.Wait()
+	best := 0
+	for c := 1; c < candidateChunks; c++ {
+		if adj[c] < adj[best] {
+			best = c
+		}
+	}
+	return idx[best]
 }
 
 func scaleCompatibilityPenalty(c model.Candidate, acceptedShapes int) float32 {

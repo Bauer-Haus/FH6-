@@ -238,7 +238,8 @@ __kernel void evaluate_candidates_v4(
     __global float* results,
     const int width,
     const int height,
-    const int sampleStep
+    const int sampleStep,
+    const int sampleBudget
 ) {
     int gid = get_group_id(0);   // candidate index
     int lid = get_local_id(1) * get_local_size(0) + get_local_id(0); // 0..255
@@ -281,62 +282,88 @@ __kernel void evaluate_candidates_v4(
     xMax = min(width - 1, xMax);
     yMax = min(height - 1, yMax);
 
-    int bw = max(xMax - xMin + 1, 1);
-    int totalCells = bw * max(yMax - yMin + 1, 1);
-
     int N = 0, Nt = 0;
     float sTR = 0.0f, sTG = 0.0f, sTB = 0.0f, sTA = 0.0f;
     float sCR = 0.0f, sCG = 0.0f, sCB = 0.0f, sCA = 0.0f;
     float sCR2 = 0.0f, sCG2 = 0.0f, sCB2 = 0.0f, sCA2 = 0.0f;
     float sTCR = 0.0f, sTCG = 0.0f, sTCB = 0.0f, sTCA = 0.0f;
 
-
     int sampleStride = max(sampleStep, 1);
+    // Adaptive sampling (random stage only, sampleBudget > 0): a large
+    // shape is judged from a regular grid of about sampleBudget pixels
+    // instead of every pixel; counts are scaled back up below.
+    if (sampleBudget > 0) {
+        float area = (shapeType == 1) ? 3.14159265f * rx * ry : 4.0f * rx * ry;
+        sampleStride = max(sampleStride, (int)floor(sqrt(area / (float)sampleBudget)));
+    }
 
-    for (int ci = lid; ci < totalCells; ci += WG_SIZE) {
-        int ly = ci / bw;
-        int lx = ci % bw;
-        int x = xMin + lx;
-        int y = yMin + ly;
+    // 16x16 work-items tile the sampled grid: work-item (lx, ly) takes rows
+    // yMin + ly*s, +16s, ... and columns xMin + lx*s, +16s, ... This visits
+    // exactly the pixels of the old flat loop without a per-pixel integer
+    // division and two remainders.
+    int lx = lid & 15;
+    int ly = lid >> 4;
+    int colStep = 16 * sampleStride;
 
-        if (((x - xMin) % sampleStride) != 0 || ((y - yMin) % sampleStride) != 0) {
-            continue;
-        }
+    // Ellipse row span: inside <=> qa*dx^2 + (qbk*dy)*dx + (qck*dy^2 - 1) <= 0.
+    float qa = cos2 * invRX2 + sin2 * invRY2;
+    float qbk = 2.0f * cosT * sinT * (invRX2 - invRY2);
+    float qck = sin2 * invRX2 + cos2 * invRY2;
 
-        float dx = ((float)x + 0.5f) - cx;
+    for (int y = yMin + ly * sampleStride; y <= yMax; y += colStep) {
         float dy = ((float)y + 0.5f) - cy;
-        float xr = dx * cosT + dy * sinT;
-        float yr = -dx * sinT + dy * cosT;
-        bool inside = false;
+        int x0 = xMin;
+        int x1 = xMax;
         if (shapeType == 1) {
-            inside = (xr * xr * invRX2 + yr * yr * invRY2 <= 1.0f);
-        } else if (shapeType == 2) {
-            if (yr >= -ry && yr <= ry) {
-                float halfWidth = rx * (yr + ry) / (2.0f * ry);
-                inside = (fabs(xr) <= halfWidth);
+            // Only walk the columns this row of the ellipse can cover
+            // (+-1 px margin; the exact per-pixel test below still decides).
+            float qb = qbk * dy;
+            float qc = qck * dy * dy - 1.0f;
+            float sq = sqrt(fmax(qb * qb - 4.0f * qa * qc, 0.0f));
+            float inv2a = 0.5f / qa;
+            x0 = max(xMin, (int)floor((-qb - sq) * inv2a + cx - 0.5f) - 1);
+            x1 = min(xMax, (int)ceil((-qb + sq) * inv2a + cx - 0.5f) + 1);
+        }
+        int x = xMin + lx * sampleStride;
+        if (x < x0) {
+            x += ((x0 - x + colStep - 1) / colStep) * colStep;
+        }
+        int row = y * width;
+        for (; x <= x1; x += colStep) {
+            float dx = ((float)x + 0.5f) - cx;
+            float xr = dx * cosT + dy * sinT;
+            float yr = -dx * sinT + dy * cosT;
+            bool inside = false;
+            if (shapeType == 1) {
+                inside = (xr * xr * invRX2 + yr * yr * invRY2 <= 1.0f);
+            } else if (shapeType == 2) {
+                if (yr >= -ry && yr <= ry) {
+                    float halfWidth = rx * (yr + ry) / (2.0f * ry);
+                    inside = (fabs(xr) <= halfWidth);
+                }
+            } else {
+                inside = (fabs(xr) <= rx && fabs(yr) <= ry);
             }
-        } else {
-            inside = (fabs(xr) <= rx && fabs(yr) <= ry);
-        }
-        if (!inside) {
-            continue;
-        }
-        int p = y * width + x;
-        if (opaqueMask[p] == 0) {
-            Nt++;
-            continue;
-        }
+            if (!inside) {
+                continue;
+            }
+            int p = row + x;
+            if (opaqueMask[p] == 0) {
+                Nt++;
+                continue;
+            }
 
-        float4 t = target[p];
-        float4 s = current[p];
+            float4 t = target[p];
+            float4 s = current[p];
 
-        sTR += t.x; sTG += t.y; sTB += t.z; sTA += t.w;
-        sCR += s.x; sCG += s.y; sCB += s.z; sCA += s.w;
-        sCR2 += s.x * s.x; sCG2 += s.y * s.y;
-        sCB2 += s.z * s.z; sCA2 += s.w * s.w;
-        sTCR += t.x * s.x; sTCG += t.y * s.y;
-        sTCB += t.z * s.z; sTCA += t.w * s.w;
-        N++;
+            sTR += t.x; sTG += t.y; sTB += t.z; sTA += t.w;
+            sCR += s.x; sCG += s.y; sCB += s.z; sCA += s.w;
+            sCR2 += s.x * s.x; sCG2 += s.y * s.y;
+            sCB2 += s.z * s.z; sCA2 += s.w * s.w;
+            sTCR += t.x * s.x; sTCG += t.y * s.y;
+            sTCB += t.z * s.z; sTCA += t.w * s.w;
+            N++;
+        }
     }
 
     // Write partials to local memory (flat, 18 floats per work-item).
@@ -377,8 +404,10 @@ __kernel void evaluate_candidates_v4(
     sCR2= l_data[10]; sCG2= l_data[11]; sCB2= l_data[12]; sCA2= l_data[13];
     sTCR= l_data[14]; sTCG= l_data[15]; sTCB= l_data[16]; sTCA= l_data[17];
 
-    // Hard reject (same thresholds as v3).
-    if (N == 0 || Nt > 64 || Nt * 400 > N) {
+    // Hard reject (same thresholds as v3). Nt is a sampled count, so scale
+    // it to an estimated pixel count before comparing with the absolute cap.
+    float s2 = (float)(sampleStride * sampleStride);
+    if (N == 0 || (float)Nt * s2 > 64.0f || Nt * 400 > N) {
         results[gid * 4 + 0] = 3.402823466e+38f;
         results[gid * 4 + 1] = 0.0f;
         results[gid * 4 + 2] = 0.0f;
@@ -413,7 +442,7 @@ __kernel void evaluate_candidates_v4(
 
     if (Nt > 0) {
         float spillFrac = (float)Nt / (float)(N + Nt);
-        totalDelta += a2 * ((float)Nt) * (1.0f + 2.0f * spillFrac) * (oR*oR + oG*oG + oB*oB + 1.0f);
+        totalDelta += a2 * ((float)Nt * s2) * (1.0f + 2.0f * spillFrac) * (oR*oR + oG*oG + oB*oB + 1.0f);
     }
 
     results[gid * 4 + 0] = totalDelta;

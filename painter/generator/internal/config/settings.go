@@ -135,6 +135,8 @@ func ParseSettings(path string) (model.Settings, error) {
 			cfg.LoadGeometry = value
 		case "errorMetric":
 			cfg.ErrorMetric = strings.ToLower(strings.TrimSpace(value))
+		case "randomSampleBudget":
+			cfg.RandomSampleBudget = parseInt(value, cfg.RandomSampleBudget)
 		case "ssimWeight":
 			cfg.SsimWeight = parseFloat(value, cfg.SsimWeight)
 		}
