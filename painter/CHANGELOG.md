@@ -1,0 +1,223 @@
+# Changelog
+
+## v1.9.7 / 2026-11-16
+
+- **Only the finished final JSON is auto-imported** — JSON discovery now matches file names exactly: `logo.png` only finds `logo.json` / `logo.<number>.json`, never `logo-2.json` or other sibling files. Adding an image (including startup preloading and `Use generated JSON`) auto-selects only that image's final JSON; mid-run checkpoint JSONs stay on disk and can be imported manually via `Add JSON`. A failed or stopped run no longer imports anything automatically: the final JSON only counts as this run's output when the generator created or updated it, so a leftover file from an earlier run is never mistaken for a fresh result.
+  **自动导入只认生成完成的最终 JSON** — JSON 识别改为精确文件名匹配：`logo.png` 只会找到 `logo.json` / `logo.<数字>.json`，绝不会带入 `logo-2.json` 等同名前缀文件。添加图片（含启动预载与「使用已生成 JSON」）只自动选择该图的最终 JSON；中途保存的 checkpoint JSON 保留在磁盘，可通过「添加 JSON」手动导入。生成失败或中止不再自动导入任何文件：只有本次生成新建或更新了最终 JSON 才算本次输出，旧运行遗留的同名文件不会被误当成新成果。
+- **Remembered UI language** — The title-bar language choice is saved to `runtime/settings/ui_preferences.json` and restored on the next launch instead of silently reverting to English.
+  **记住界面语言** — 标题栏选择的语言会保存到 `runtime/settings/ui_preferences.json`，下次启动直接恢复，不再静默变回英文。
+- **Per-image output folders** — `Generate JSON` no longer writes the checkpoint and final JSON files next to the source image. Every generated JSON of one image is collected in `out/<image stem>/` beside the app, and each source image sent to the generator is backed up to `image/`, so it is easy to see which images were already generated. The import page still picks up the best generated JSON automatically, and `Open output folder` opens the per-image folder. Region Paint, Text, and full-shape Export keep their existing output locations.
+  **按图片归档输出目录** — 「生成 JSON」不再把 JSON 写到原图所在目录：一张图生成的所有 JSON 都归档到软件旁的 `out\<图片名>\`，同时每张送去生成的原图都会备份到 `image\`，方便确认哪些图已经生成过。导入页仍会自动引入效果最好的 JSON，「打开输出目录」直接打开对应图片的文件夹。区域绘制、文本、全形状导出的输出位置不变。
+- **Same-name images no longer collide in `out/`** — Backups and JSON outputs are grouped by the image's extension: a source image is archived to `image/<ext>/` and every JSON of one image is collected in `out/<image stem>/<ext>/`, so `mabynotimage.png` and `mabynotimage.jpg` generate side by side without overwriting each other's checkpoints or previews. `out/` never contains image files anymore; a leftover working copy from earlier runs is removed automatically when its content matches the archived backup. Adding an image whose filename and extension (case-insensitive, path ignored) already exists in the list is rejected with a warning asking to rename the file, and the same rule is enforced during generation: an archived file with the same name but different content fails the run instead of silently forking the outputs. Path selection and copying run under one lock so parallel jobs can no longer grab the same target.
+  **同名图片不再在 out/ 中互相覆盖** — 备份与 JSON 输出按图片扩展名分组：原图备份到 `image\<扩展名>\`，一张图的所有 JSON 归档到 `out\<图片名>\<扩展名>\`，`mabynotimage.png` 和 `mabynotimage.jpg` 可以同时生成，checkpoint 与预览互不干扰。`out\` 中不再出现图片文件；旧版本遗留的 `out\<图片名>\` 图片副本会在内容与备份一致时被自动清理。添加文件名与扩展名都相同（忽略大小写与路径）的图片时会被弹窗拒绝并提示重命名；生成阶段同样执行该规则——遇到同名但内容不同的已归档图片会明确报错，而不是悄悄分叉输出。路径选择与复制在同一把锁内完成，并行任务不会争用同一目标。
+
+- **Isolated preprocessing cache and output identity** — `luma_band` intermediates are stored in an isolated `.preprocessed` folder and generation output/preview paths stay tied to the original image name, so a user image such as `logo.luma_band.png` cannot collide with a preprocessed `logo.png`.
+  **隔离预处理缓存与原图输出身份** — `luma_band` 中间文件改存于独立的 `.preprocessed` 子目录，生成输出和预览始终按原图名称归档，避免用户图片 `logo.luma_band.png` 与 `logo.png` 的预处理副本冲突。
+- **Consistent duplicate protection and output guidance** — BMP images now receive the same duplicate-name checks as PNG/JPG images, and the Generate page plus English, Chinese, Korean, and Spanish READMEs explain the output and backup folders.
+  **统一重名保护与输出说明** — BMP 图片现与 PNG/JPG 一样执行重名检查；生成页面及中、英、韩、西语 README 均说明新的输出和备份目录。
+
+## v1.9.6 / 2026-08-31
+
+- **Graphics card picker** — `Generate JSON` step 2 has a `Graphics card` selector next to the quality profile. `Automatic (best GPU)` keeps the previous behaviour (the generator picks the discrete card with the most VRAM); choosing a specific card pins the bundled generator to it. Useful on multi-GPU machines to keep generation off the card that is running the game.
+  - Cards are detected through the OpenCL ICD loader, so the list matches what the generator itself can see, and duplicates from multiple registered ICDs are collapsed.
+  - The choice is stored in `runtime/settings/ui_preferences.json` and also applies to the `Region Paint` passes, which use the same generator.
+  - The requested card is written to the log right before each run, next to the generator's own `OpenCL: Selected device` line, so the two can be compared.
+  - AMD cards are pinned with `GPU_DEVICE_ORDINAL` and NVIDIA cards with `CUDA_VISIBLE_DEVICES`. Intel exposes no device selector, so an Intel GPU can be listed but not forced; the app says so in the log and lets the generator choose.
+- **Parallel image generation** — `Generate JSON` step 2 gained a `Parallel images` selector (1-4, default 1). With more than one image queued, that many generators run at once instead of strictly one after another.
+  - Why it helps: each generator alternates a single-threaded CPU sampling phase with a GPU evaluation phase. Profiling the bundled generator showed roughly 57% of every layer on the GPU and 43% on the CPU, with the process using only ~0.6 of 16 cores, so a single run leaves the GPU idle between layers. Overlapping images fills those gaps.
+  - Measured on an RX 9070 XT with three copies of one image at 200 layers: 24.8s sequential vs 11.6s at 3 parallel (~2x). Two parallel measured ~1.5x.
+  - Default 1 keeps the previous behaviour exactly, including the per-layer ETA. Above 1 the ETA is replaced by an image counter, because parallel jobs interleave their layer numbers, and log lines are prefixed with the image name.
+  - `Stop current generation` now terminates every running generator, not just the most recently started one.
+  - A failure in one parallel job is reported with the image name and marks the whole run as failed; the other queued images still finish.
+  - This does **not** speed up a single image. The idle gap inside one generator can only be closed upstream, in `forza-painter-geometrize-go`, by overlapping the sampling of layer N+1 with the GPU evaluation of layer N.
+  - Note: `maxThreads` in the settings profiles has no measurable effect (tested 0/1/4/8/16/32 — all within noise), and neither do `previewEvery`, `saveEvery`, `posterizeLevels`, or the sample counts. `errorGridSize = 196` is measurably slower than `64`.
+- **EXE build fails loudly instead of shipping a broken binary** — `scripts/make_exe_release.ps1` now points Tcl/Tk at the base Python installation and verifies that `tkinter` can start before invoking PyInstaller. `python -m venv` does not copy the Tcl/Tk data directory on Windows, so PyInstaller only warned (`tkinter installation is broken. It will be excluded from the application`), exited 0, and produced an EXE that died on launch with `No module named 'tkinter'`.
+
+## v1.9.5 / 2026-07-04
+
+- **Rollback v1.9.4 changes** — Reverted multi-shape generation & import (rectangle/triangle support), expanded custom settings UI, and related preset updates. These features introduced regressions and have been rolled back to restore the v1.9.2 stable behavior.
+
+## v1.9.2 / 2026-06-21
+
+- **Region Paint exclude mode** — Added an "Exclude Mode" checkbox to the Region Paint selection tools. Check it to draw exclusion zones (shown as a semi-transparent black overlay) instead of inclusion zones (red overlay). A "Toggle Include/Exclude" button lets you switch any selected shape between include and exclude after drawing. When both include and exclude shapes overlap on the canvas, exclude takes priority in the final region mask — meaning `Paint Selected Region` will generate new layers everywhere *except* the excluded areas.
+- **Region Paint total budget fix** — Fixed the Total Budget input box being effectively ignored. Previously, changing the Total Budget value after selecting a Quality Profile had no effect because `prepare_first_pass` always read `stopAt` directly from the profile INI file instead of from the user's input. Now the user's Total Budget value is correctly passed through to the state manager, and all budget checks (`Start First Pass` guard, `Paint Selected Region` guard, and the `Remaining` display) respect the input-box value.
+
+## v1.9.1 / 2026-06-17
+
+- **Region Paint checkpoints** — Every pass (First Pass and each Paint Selected Region) now saves an independent checkpoint JSON, preview, and heatmap under `checkpoints/` with unique `passN_attemptM` naming. Users can freely switch between any past checkpoint via the Pass History list without losing data.
+  - Re-running the same pass after a rollback creates a new attempt instead of overwriting the previous result.
+  - Select any checkpoint in the Pass History list and click "Restore Checkpoint" to instantly switch the active state, preview, and heatmap.
+  - Switching checkpoints is non-destructive — all historical snapshots are preserved on disk.
+  - Step 4 actions, Pass History, and result buttons are now in a separate scrollable area below Steps 1–3 for better small-screen usability.
+
+## v1.9.0 / 2026-06-14
+
+- **Text Vinyl** — New Text tab for generating FH6 typecode JSON from typed Unicode text. Supports Latin, Japanese, Korean, and Chinese (Simplified/Traditional) script panels with localized UI (English, Spanish, Portuguese, Simplified/Traditional Chinese, Korean).
+  - **Text input**: Type or paste text in any supported script; CJK text is auto-detected for optimal shape-mode selection.
+  - **Font browser**: Upload `.ttf`/`.otf`/`.ttc` files directly, or browse installed CJK fonts discovered on the system. Fonts are sorted alphabetically.
+  - **Exact color picker**: Integrated DxBang's color converter with hex-value (`#RRGGBB`) entry for precise text color selection.
+  - **Import flow**: Text-generated JSON is wired into the existing Import page flow with dismissible guidance about circle-template compatibility and save/reload behavior.
+  - **Pixel art geometry** (`pixel_art_geometry`): Image tracer that converts pixel art into scaled typecode geometry for import.
+  - **Shared color palette** (`saved_color_swatches`): Cross-tab color swatch system for reusing favorite colors across Image, Text, and Region Paint workflows.
+  - **Workspace management** (`asset_workspace`): Structured runtime directories with safe cache cleanup, manifest tracking, and copy-on-write file staging.
+  - **Security policy** (`security_policy`): Shared numeric limits for geometry operations and template layer budgets.
+  - **CLI** (`text/cli.py`): Command-line interface for generating text geometry JSON from typed CJK text or text images.
+  - **Tests**: 13 new test files covering text geometry, fonts, stroke tracing, character libraries, layer masks, layout, and import templates.
+
+## v1.8.5 / 2026-06-13
+
+- **Region Paint budget guard**: Clicking `Start First Pass` when First-pass layers exceed Total Budget, or clicking `Paint Selected Region` when used layers + Region layers exceed Total Budget, now shows a clear log warning and stops instead of silently overrunning the budget.
+- **Multi-direction drag support**: Rectangle and Ellipse selection tools in Region Paint now work when dragging in any direction (e.g. bottom-right to top-left). Previously non-top-left-to-bottom-right drags would fail with a mask generation error.
+- **Clear mask improvements**: The `Clear All` button (renamed from "Clear Mask") removes all selection masks. A new `Clear Selected` button deletes only the currently selected mask, logging a hint if nothing is selected.
+- **Small-screen accessibility**: Duplicate `Open Result Folder` and `Save Result JSON` buttons added inside the scrollable Step 3 area with a "(for small screens)" hint, so laptop users can still access result actions when the bottom buttons are off-screen.
+
+## v1.8.4 / 2026-06-07
+
+- Region Paint selection shapes (rectangle and ellipse) now support **drag to move**, **corner-handle resize**, and **rotation** via slider, scroll wheel, entry box, or on-canvas rotation handle for precise region refinement.
+- Added a new recommended preset that produces great results with relatively low compute power.
+
+## v1.8.3 / 2026-06-06
+
+- Added a **Heatmap** tab to the Region Paint right canvas. After each pass (First Pass / Paint Selected Region) a shape-density heatmap is automatically generated from the geometry JSON and displayed alongside the rendered preview. The two tabs share a cache so switching is instant.
+- Significantly improved Region Paint preview image generation speed.
+
+## v1.8.2 / 2026-06-06
+
+- Removed the Feather control from the Region Paint tab's Step 3 selection tools. The feather (Gaussian blur) on selection masks was causing issues with the Paint Selected Region feature. Selection masks are now always hard-edged (0 feather) for reliable region painting.
+
+## v1.8.1 / 2026-06-05
+
+- Added Region Paint — a new iterative painting workflow that generates a base layer pass across the whole image, then lets you select regions (using Rectangle or Ellipse tools) and refine only those areas with additional layers. Includes layer budget management, pass history tracking, live preview on a dedicated right canvas, and result JSON export.
+- Fixed the UI log area at the bottom of the window being partially hidden behind the Notebook tabs, ensuring logs are always visible regardless of which tab is active.
+
+## v1.8.0 / 2026-06-01
+
+- Updated the app version to `v1.8.0`; release packages now use `forza-painter-fh6-v1.8.0.exe`.
+- Added experimental FH6 full-shape import/export flow: full-shape import lives on the Import page, and game-group export lives on the Export page.
+- Import now auto-detects full-shape/type-code JSONs from the normal JSON list and routes them through the full-shape importer.
+- Full-shape detection now recognizes exported type-code JSON, Kloudy/Fabric handmade JSON, FH6 full type codes, hex/string shape words, font-shape fields, and common primitive names such as `Circle`, `Square`, `Triangle`, and `Ellipse`.
+- Added resource-based preview rendering for FH6 type-code JSON exports and Kloudy/Fabric handmade JSONs, using the bundled FH6 vinyl vertex resources instead of rectangle fallbacks.
+- Type-code preview now treats mask layers as transparent cutouts instead of drawing mask shapes as ordinary filled blocks.
+- Full-shape failures now show a direct user-facing reminder with the key FH6/editor/template checks.
+- Full-shape import success now shows a save/reopen reminder because FH6 can keep showing stale live template resources until the saved vinyl group is reloaded.
+- Full-shape probe/import/export reports are kept out of the normal log flow and can be exported manually as a ZIP when debugging is needed.
+- Full-shape export reads the current editable FH6 group into JSON using the 16-bit shape word at layer offset `0x7A`.
+- Full-shape import writes only stable visual fields (`position`, `scale`, `rotation`, `skew`, `color`, `mask`, and `shape word`) and does not copy volatile resource pointers such as `0xA8`.
+- Full-shape import can clear unused template slots and trim the FH6 group count/table end after writing.
+- Included the Kloudy's FH6 Painter custom-importer MIT attribution, font-shape registry, and FH6 vinyl resource data used by the type-code importer/previewer.
+- Moved image/JSON preview rerendering off the Tk UI thread, debounced resize-triggered preview refreshes, and throttled width-driven Tk layout updates to reduce horizontal window-resize stutter.
+
+## v1.7.0 / 2026-06-01
+
+- Updated the app version to `v1.7.0`; release packages now use `forza-painter-fh6-v1.7.0.exe`.
+- Added a prominent Preset Market banner to the Generate, Import, Tools, and Tutorial pages.
+- The new market button opens https://painter6.com so users can browse shared images, presets, and JSON packages directly from the app.
+
+## v1.6.8 / 2026-05-28
+
+- Updated the app version to `v1.6.8`; release packages now use `forza-painter-fh6-v1.6.8.exe`.
+- Integrated the latest GitHub `main` changes from PR #87, keeping ellipse width/height as floating-point values for more accurate FH6 imports.
+- Added an in-app preview note explaining that v1.6.8 favors better in-game results while previews remain approximate.
+- Improved JSON preview rendering with supersampling so float-sized ellipses look less jagged or degraded in the preview panel.
+
+## v1.6.7 / 2026-05-27
+
+- Updated the app version to `v1.6.7`; release packages now use `forza-painter-fh6-v1.6.7.exe`.
+- Updated the bundled GPU generator to upstream `canary-26052702`.
+- Replaced FH6 import scale magic numbers with named `FH6_CIRCLE_BASE_SIZE` and `FH6_RECTANGLE_BASE_SIZE` constants so the in-game circle base size can be adjusted explicitly.
+- Improved generation ETA estimation so buffered generator output and early slow phases do not keep the remaining-time display wildly inaccurate.
+
+## v1.6.6 / 2026-05-26
+
+- Updated the app version to `v1.6.6`; release packages now use `forza-painter-fh6-v1.6.6.exe`.
+- Added Traditional Chinese UI translations and a wider top-right language selector.
+- Fixed `luma_band` preprocessing for RGB images and made preprocessed-image writes atomic.
+- Packaged OpenCV and NumPy into the one-file EXE so `luma_band` preprocessing works in release builds.
+- Import now requires the FH6 template layer count before starting, preventing confusing auto-locate/import failures caused by an empty layer-count field.
+- Refactored core modules with typed exceptions, frozen dataclasses, and shared utility helpers.
+- Added pytest coverage for geometry JSON normalization and internal color/shape data classes.
+
+## v1.6.5 / 2026-05-25
+
+- Updated the app version to `v1.6.5`; release packages now use `forza-painter-fh6-v1.6.5.exe`.
+- Updated the bundled GPU generator to upstream `v1.2-Canary-20260525`.
+- Bundled presets now set `forceOpaqueShapes = false` by default so transparent source regions can remain transparent unless users override the setting.
+- Generator launches now use a sanitized environment to avoid external Python, Conda, WebUI, Vulkan, or OpenCL override variables affecting the bundled GPU generator.
+- Reduced generation-time filesystem polling so the app checks previews and JSON outputs less aggressively while the GPU generator is running.
+- The heaviest bundled preset now uses `previewEvery = 100` instead of `previewEvery = 1`, avoiding excessive preview PNG writes during high-resolution generation.
+- Fixed output discovery for preprocessed generation inputs so generated JSON and preview files are tracked from the actual image passed to the GPU generator.
+
+## v1.6.1 / 2026-05-24
+
+- Updated the app version to `v1.6.1`; release packages now use `forza-painter-fh6-v1.6.1.exe`.
+- Disabled `luma_band` preprocessing by default in bundled presets.
+- Import no longer reuses stale FH6 session data from `webui-data`; it re-locates the current template before writing.
+- JSON previews now use one stable renderer path to avoid ellipse preview distortion differences between packaged EXE environments.
+
+## v1.6.0 / 2026-05-24
+
+- Updated the app version to `v1.6.0`; release packages now use `forza-painter-fh6-v1.6.0.exe`.
+- Updated the bundled GPU generator to upstream `canary-26052401`.
+- Added upstream `errorGridSize` preset support.
+- Integrated the upstream transparent-area overhang prevention algorithm adjustment.
+- Significantly improved generation quality for the large ellipse at the bottom of transparent images.
+
+## v1.5.4 / 2026-05-23
+
+- Fixed preview scaling for high-resolution source images, generator preview PNG files, and JSON previews.
+- Previews now adapt to the current preview panel size while preserving the original image aspect ratio, avoiding stretched or partially visible previews when using large max-resolution settings such as 3000.
+- Fixed JSON preview rendering for type 16 rotated ellipses in the packaged EXE by making the Pillow fallback follow the historical OpenCV preview coordinate conversion.
+
+## v1.5.3 / 2026-05-22
+
+- Added user preset import for the one-file EXE; imported `.ini` presets are stored in the external `config/settings/` folder beside the app.
+- Added remove buttons for the selected image and selected JSON entries.
+- Improved checkpoint handling: existing checkpoint JSON files are detected and reusable checkpoints are added to the Import list after failed or stopped generation.
+- Fixed JSON output discovery when source image filenames contain extra dots, such as `image.1png.png`.
+- Improved generation progress logs when the GPU generator recycles fully covered layers, so the UI no longer looks like generation restarted from an earlier layer.
+- Added a Pillow-based preview fallback and packaged it into the EXE so fresh one-file installs can preview images and JSON without OpenCV.
+
+## v1.5.2 / 2026-05-22
+
+- Added a PyInstaller-based one-file EXE so normal users no longer need to install Python, create `.venv`, or keep helper files beside the app.
+- The GUI EXE now re-launches itself in hidden helper mode for import and FH6 memory probing.
+- The Tools page and startup log now show where external runtime/cache files are stored.
+- Fixed the batch bootstrap variable-expansion bug that could run `-m venv` instead of `python -m venv`.
+- Added a repeatable `scripts/make_exe_release.ps1` build script for the one-file EXE package.
+
+## v1.5.1 / 2026-05-22
+
+- Fixed startup dependency installation when a project `.venv` exists but its Python does not have `pip`; the bootstrapper now runs `ensurepip --upgrade` before installing requirements.
+- Improved startup-script diagnostics when required release files are missing, with a clear message to fully extract the release ZIP first.
+
+## v1.5.0 / 2026-05-22
+
+- Added a startup update check against the GitHub `main` branch version file.
+- When update checking fails, the app shows a small `!` indicator in the top-right corner; clicking it shows the failure reason.
+- When a newer version is available, the app displays this changelog section and lets the user open the update page.
+- Switched the desktop UI to a dark theme for better contrast during long generation and import sessions.
+- Updated the bundled GPU/OpenCL generator to upstream `canary-26052102`.
+- Added the upstream work-group evaluation algorithm from PR #4, reducing GPU candidate-evaluation overhead and improving generation throughput on supported OpenCL devices.
+- `start_app.bat` now bootstraps the project-local `.venv`: it installs missing dependencies and then launches the app.
+- Dependency installation now uses `.venv` instead of installing packages into the global Python environment.
+
+## v1.4.1 / 2026-05-21
+
+- FH6 template auto-location now tries both the v1.3 small/medium-region address-order scan and the v1.4 large-region chunked scan before giving up.
+- Added an RTTI vtable fallback locator for difficult FH6 sessions while keeping the existing safe table validation before writing.
+- Raised the FH6 auto-location budget to 300 seconds, with a 360-second outer watchdog timeout.
+- Added a user-facing wait message before FH6 auto-location starts, warning users to keep the Vinyl Group Editor open and avoid switching menus.
+
+## v1.4.0 / 2026-05-21
+
+- Added detailed log export with a 50000-character output limit.
+- Detailed logs include helper/generator raw output, commands, exit codes, process/template state, and current session data.
+- Improved FH6 template auto-location by scanning large writable private memory regions in 4 MB chunks.
+- Increased the FH6 auto-location scan budget to 120 seconds and the outer watchdog timeout to 160 seconds.
+
+## v1.3.0 / 2026-05-21
+
+- Updated the bundled GPU/OpenCL generator to upstream `canary-26052101`.
+- Added the upstream generator device-selection fix, prioritizing NVIDIA GPUs with the most VRAM.
+- Generation logs now show the selected OpenCL device.
+- Improved FH6 template auto-locate failure handling so stale session cache is not reported as a newly verified template.

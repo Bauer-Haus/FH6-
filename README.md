@@ -52,3 +52,25 @@ Cropping and removing the background before you run the tool helps a lot.
    The sheet's numbers are **percentages of the sticker's width**, with x to the right, y up and rotation clockwise.
    Pick one scale factor (for example, 1% = 1 in-game unit) and use it for every layer.
 5. Save the vinyl group, then apply it to your car in the livery editor.
+
+## Automatic import with forza-painter (Windows PC)
+
+The `painter/` folder contains [forza-painter FH6](https://github.com/bvzrays/forza-painter-fh6)
+(MIT), with several bug fixes listed in `painter/UPSTREAM.md`. It writes the layers straight into
+the game's Vinyl Group Editor, so you don't place them by hand. See `painter/README.md` for the full guide.
+
+- **Best quality:** use its own GPU generator (`painter/start_app.bat`, or the release EXE).
+- **No compatible GPU:** generate with this tool instead, then import the file in the app's **Import** page:
+  ```
+  python fh6_sticker.py "https://example.com/logo.png" --shapes 1000 --painter-json
+  ```
+  This writes `out/painter.json` (ellipses only, because the importer has no rotated rectangles).
+
+Writing into the game's memory is not an official feature. Use it at your own risk.
+
+## Tests
+
+```
+python -m pytest tests          # this tool
+cd painter && python -m pytest  # forza-painter
+```

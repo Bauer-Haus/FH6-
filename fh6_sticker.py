@@ -11,6 +11,9 @@ primitives) and writes:
   out/progress.png     the build-up after 10%, 25%, 50%, 100% of the layers
   out/layers.json      machine-readable layer list
   out/layers.html      printable layer sheet: one row per layer, in placement order
+  out/painter.json     (with --painter-json) geometry JSON for the bundled
+                       forza-painter FH6 importer in ./painter, so the layers are
+                       written into the game instead of placed by hand
 
 Then, in-game: Creative Hub -> Paints, Liveries & Designs -> Create Vinyl Group,
 add the layers from the sheet bottom-to-top (layer 1 first), save the group and
@@ -260,6 +263,31 @@ Tick each row as you go.</p>
         f.write(page)
 
 
+def write_painter_json(path, bg, layers, W, H, out_size):
+    """Write forza-painter geometry JSON.
+
+    Format (see painter/src/geometry_json.py): shape 0 is the background
+    rectangle [0, 0, width, height]; ellipses are type 16 with data
+    [cx, cy, radius_x, radius_y, rotation_deg] in image pixels, rotation
+    clockwise. Coordinates are scaled from the working image up to out_size
+    (longest side) to match what the GPU generator produces.
+    """
+    k = out_size / max(W, H)
+    shapes = [{"type": 1, "data": [0, 0, round(W * k), round(H * k)], "color": [*bg, 255], "score": 0}]
+    for s, c in layers:
+        if s.kind != "circle":
+            raise ValueError("forza-painter import only supports ellipses; fit with --kinds circle")
+        shapes.append({
+            "type": 16,
+            "data": [round(s.cx * k), round(s.cy * k), round(s.w / 2 * k, 2), round(s.h / 2 * k, 2),
+                     round(s.rot) % 360],
+            "color": [*c, 255],
+            "score": 0,
+        })
+    with open(path, "w") as f:
+        json.dump({"shapes": shapes}, f)
+
+
 # --------------------------------------------------------------------------- main
 
 def main():
@@ -274,6 +302,9 @@ def main():
                    help="random candidates tried per layer (default 150; higher = slower, better)")
     p.add_argument("--size", type=int, default=None,
                    help="working resolution in pixels (default 160, or 320 above 200 shapes)")
+    p.add_argument("--painter-json", action="store_true",
+                   help="also write painter.json for the forza-painter importer in ./painter "
+                        "(uses ellipses only, because that importer has no rotated rectangles)")
     p.add_argument("--seed", type=int, default=None, help="random seed for repeatable results")
     a = p.parse_args()
 
@@ -283,9 +314,13 @@ def main():
     kinds = [k.strip() for k in a.kinds.split(",") if k.strip() in ("circle", "square")]
     if not kinds:
         sys.exit("--kinds must include circle and/or square")
+    if a.painter_json and kinds != ["circle"]:
+        print("--painter-json: fitting with ellipses only (the importer has no rotated rectangles).")
+        kinds = ["circle"]
 
     print(f"Loading {a.source} ...")
     img = load_image(a.source)
+    orig_longest = max(img.size)
     size = a.size or (WORK_SIZE if a.shapes <= 200 else 320)
     img.thumbnail((size, size), Image.LANCZOS)
     W, H = img.size
@@ -293,6 +328,10 @@ def main():
     print(f"Fitting {a.shapes} shapes on a {W}x{H} working image ...")
     bg, layers = fit(target, a.shapes, kinds, candidates=a.quality)
     write_outputs(a.out, a.source, bg, layers, W, H)
+    if a.painter_json:
+        pj = os.path.join(a.out, "painter.json")
+        write_painter_json(pj, bg, layers, W, H, min(orig_longest, 1400))
+        print(f"Wrote {pj}. Import it with the forza-painter app (painter/README.md, 'Import JSON').")
     print(f"Done. Open {os.path.join(a.out, 'layers.html')} and build the group in-game.")
 
 

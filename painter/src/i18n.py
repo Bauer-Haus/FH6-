@@ -1,0 +1,1524 @@
+from __future__ import annotations
+
+from version import app_title
+
+
+TEXT = {
+    "en": {
+        "title": app_title(),
+        "subtitle": "Generate geometry JSON and import it into Forza Horizon vinyl editor.",
+        "language": "Language",
+        "process": "Game process",
+        "refresh": "Refresh",
+        "generate_tab": "Generate JSON",
+        "import_tab": "Import",
+        "export_tab": "Export",
+        "tools_tab": "FH6 Tools",
+        "tutorial_tab": "Tutorial",
+        "market_banner": "Preset Market is online: browse shared images, presets, and JSON packages at painter6.com.",
+        "open_market": "Open Market",
+        "images": "Images",
+        "add_images": "Add images",
+        "remove_image": "Remove selected image",
+        "quality": "Quality profile",
+        "gpu_device": "Graphics card",
+        "gpu_device_auto": "Automatic (best GPU)",
+        "gpu_device_refresh": "Refresh GPUs",
+        "gpu_device_hint": "Pick the GPU that runs the generator. Automatic lets the generator choose.",
+        "gpu_device_none": "No OpenCL GPU detected. The generator will pick a device on its own. Update your NVIDIA/AMD/Intel drivers if a card is missing.",
+        "gpu_device_forced": "Generator GPU: {device}",
+        "gpu_device_auto_log": "Generator GPU: automatic (the generator picks the device).",
+        "gpu_device_unsupported": "{device} cannot be forced from this app ({vendor} exposes no device selector). The generator will pick a device on its own.",
+        "gpu_device_missing": "The previously selected GPU is no longer available. Switched back to automatic.",
+        "parallel_jobs": "Parallel images",
+        "parallel_jobs_hint": "Only helps with several images queued; one image alone runs the same.",
+        "parallel_jobs_active": "Running {jobs} images at once ({images} queued). Per-layer ETA is off while jobs overlap.",
+        "parallel_jobs_progress": "{done}/{total} images done",
+        "parallel_jobs_selected": "Parallel generation: up to {jobs} images at once.",
+        "parallel_jobs_off": "Parallel generation off: one image at a time.",
+        "parallel_jobs_incomplete": "Only {done} of {total} images produced a result. Treating the run as failed; check the detailed log.",
+        "import_preset": "Import preset",
+        "open_preset_folder": "Open preset folder",
+        "custom_settings": "Use custom settings",
+        "custom_layers": "Output layers",
+        "custom_resolution": "Max resolution",
+        "custom_random": "Random samples",
+        "custom_mutated": "Mutated samples",
+        "custom_save_at": "Save checkpoints",
+        "preprocess_mode": "Preprocess mode",
+        "save_custom_preset": "Save as preset",
+        "custom_panel_title": "Custom settings",
+        "custom_panel_hint": "The selected preset fills these values. Enable custom settings if you want to edit them before generating.",
+        "generate_step_image": "Step 1 - Choose images",
+        "generate_step_image_hint": "Add PNG/JPG/BMP images. JSON is saved beside the app in out/<image name>/<extension>/; source images are backed up to image/<extension>/.",
+        "generate_step_quality": "Step 2 - Choose quality",
+        "generate_step_quality_hint": "Fast profiles are quicker. Slow profiles use more GPU time and usually look cleaner.",
+        "generate_step_run": "Step 3 - Generate",
+        "generate_step_run_hint": "Click once and wait. Progress appears in Logs; generated JSON is added to the Import page automatically.",
+        "scroll_hint": "Add image, choose a preset, then adjust custom settings if needed.",
+        "start_generate": "Generate with current settings",
+        "stop_generate": "Stop current generation",
+        "open_output": "Open output folder",
+        "generate_backup_saved": "Source image copied to {path}",
+        "generate_output_folder": "All JSON for this image is saved in {path}",
+        "generate_backup_failed": "Could not back up the source image: {error}",
+        "preview": "Preview",
+        "preview_hint": "Select an image or JSON to preview it here.",
+        "preview_unavailable": "Preview is unavailable. Install optional preview dependencies, or continue without preview.",
+        "preview_accuracy_note": "Current builds keep float ellipse sizes for better in-game import; preview is approximate.",
+        "logs": "Logs",
+        "export_logs": "Export detailed log",
+        "progress": "Progress",
+        "json_files": "Geometry JSON files",
+        "add_json": "Add JSON",
+        "remove_json": "Remove selected JSON",
+        "use_outputs": "Use generated JSON",
+        "step_game": "Step 1 - Game",
+        "step_game_hint": "Start FH6, open Vinyl Group Editor, load an ungrouped sphere template, then refresh the process list.",
+        "step_template": "Step 2 - Template",
+        "step_template_hint": "Enter the exact layer count shown by your current in-game template.",
+        "step_json": "Step 3 - JSON",
+        "step_json_hint": "Use the JSON generated by this app, or add a geometry JSON manually. The finished final JSON is selected automatically; to import a mid-run checkpoint JSON, use 'Add JSON'.",
+        "step_import": "Step 4 - Import",
+        "step_import_hint": "Click import once. The app will find the FH6 layer table safely, then write the design.",
+        "advanced_options": "Advanced options",
+        "show_advanced": "Show advanced",
+        "hide_advanced": "Hide advanced",
+        "import_preview": "Selected JSON preview",
+        "game_profile": "Game profile",
+        "pid": "PID",
+        "layer_count": "Template layer count",
+        "easy_import": "Easy import",
+        "easy_import_hint": "For FH6, leave addresses empty. The app will reuse a live session or auto-locate before import.",
+        "manual_count": "Layer count address",
+        "manual_table": "Layer table address",
+        "auto_locate": "Auto-locate FH6",
+        "import_json": "Import JSON",
+        "diagnose": "Diagnose",
+        "save_snapshot": "Save count snapshot",
+        "compare_snapshot": "Compare snapshot",
+        "snapshot_count": "Snapshot layer count",
+        "current_count": "Current layer count",
+        "inspect_table": "Inspect table",
+        "table_address": "Candidate table",
+        "admin_note": "Import needs administrator permission. Start this app as administrator if OpenProcess fails.",
+        "no_game": "No supported game process detected",
+        "layer_count_required": "Template layer count is required. Enter the exact layer count shown in-game.",
+        "ready": "Ready",
+        "running": "Running",
+        "done": "Done",
+        "failed": "Failed",
+        "stopped": "Stopped",
+        "no_generation_running": "No generation is running.",
+        "stopping_generation": "Stopping current generation...",
+        "generation_stopped": "Generation stopped.",
+        "generator_recycled_layers": "Generator recycled fully covered layers after {max_layer}/{total}; continuing. This is normal and is not a full restart.",
+        "existing_final_json_found": "Found existing final JSON for {image}; added it to Import.",
+        "checkpoint_manual_hint": "Generation failed or was stopped. Any saved checkpoint JSON stays on disk; use 'Add JSON' to import it manually.",
+        "imported_presets": "Imported {count} preset file(s).",
+        "saved_preset": "Saved preset: {path}",
+        "no_image_selected": "No image is selected.",
+        "no_json_selected": "No JSON is selected.",
+        "cannot_resume_checkpoint": "Existing checkpoints can be reused/imported, but this GPU generator does not support true resume-from-checkpoint yet.",
+        "duplicate_image_name": "Duplicate image name",
+        "duplicate_image_rejected": "Detected images with the same name and extension: {names}. Please rename the files and add them again.",
+        "locating": "Finding current FH6 template...",
+        "locating_wait": "This can take up to 5 minutes. Keep FH6 in the Vinyl Group Editor, do not switch menus, and wait patiently.",
+        "located": "FH6 template located and verified.",
+        "importing": "Importing JSON into FH6...",
+        "json_too_small": "Selected JSON has far fewer drawable layers than the usable template capacity. Import will look blurry; choose a higher-layer JSON.",
+        "json_needs_more_template_layers": "FH needs 4 boundary layers for correct cover/apply behavior. Use a template with at least JSON drawable layers + 4.",
+        "safe_stop": "Stopped before writing because no safe FH6 template was found.",
+        "update_available_title": "Update available",
+        "update_available_message": "A new version is available.\n\nCurrent: v{current}\nLatest: v{latest}",
+        "update_open_page": "Open update page",
+        "update_later": "Later",
+        "update_check_failed_title": "Update check failed",
+        "update_check_failed_message": "Could not check for updates. You can keep using the app.\n\n{error}",
+        "update_current": "Already on the latest version.",
+        "changelog": "Changelog",
+        "runtime_folder": "Runtime/cache folder",
+        "open_runtime_folder": "Open runtime folder",
+        "runtime_location": "Runtime/cache files are stored beside the app: {runtime}. FH6 probe cache: {probe}.",
+        "tutorial": """Beginner workflow
+
+1. Download the one-file EXE from GitHub Releases and run it directly. Normal users do not need Python, .venv, or batch files.
+
+2. Start Forza Horizon 6 and enter Create Vinyl Group / Vinyl Group Editor.
+
+3. Load or create a template made of many simple sphere layers. 500 or more layers is recommended. Ungroup the template before importing.
+
+4. In this app, open Generate JSON, add a PNG/JPG/BMP image, choose a quality profile, then click Start generating.
+
+5. Open Import. Add the generated JSON or click Use generated JSON. Keep Game profile as Forza Horizon 6.
+
+6. Enter the real template layer count currently loaded in-game. For FH6 you normally do not need to type memory addresses. Click Import JSON; the app will auto-locate the live FH6 layer table if needed.
+
+7. If import fails with OpenProcess or permission errors, close the app and run the EXE as administrator. If the game was restarted, entered another menu, or reloaded the template, import again with the new correct layer count.
+
+Notes
+
+- JSON generation uses the bundled GPU/OpenCL generator, so keep the graphics driver updated.
+- Current FH6 addresses are valid only for the current game process and editor state.
+- If the app cannot find a safe template, confirm the editor is open, the template is ungrouped, and the layer count is exact.
+
+Region Paint
+
+Region Paint lets you iteratively refine specific areas of an image. Instead of generating all layers at once, you generate a base layer pass first, then select regions (faces, details, etc.) and add extra layers only to those areas.
+
+1. Open Region Paint tab. Click Add Image to select a PNG/JPG/BMP.
+
+2. Choose a Quality Profile — this sets the Total budget (stopAt value from the profile). Adjust First-pass layers (how many layers to generate initially across the whole image) and Region layers (how many to add per selected region).
+
+3. On the Original canvas, use Rectangle or Ellipse tool to draw a selection region. The red overlay shows your selection. Use Clear Mask to remove the selection.
+
+4. Click Start First Pass to generate the base layers. Wait for completion — a preview appears on the right canvas.
+
+5. Draw a selection region on the left canvas, then click Paint Selected Region to add more layers only inside that region. Repeat for each area you want to refine.
+
+6. After all passes, use Open Result Folder to find base.json in the output directory, or Save Result JSON to export it to a custom location.
+
+7. Import the result JSON using the Import tab — same workflow as standard generation.
+
+Tips
+
+- The remaining budget is shown next to Remaining. Each region pass consumes layers from this budget.
+- You can run multiple region passes on the same area for extra refinement.
+""",
+        "region_paint_tab": "Region Paint",
+        "region_step_image": "Step 1 — Choose image & profile",
+        "region_step_budget": "Step 2 — Set layer budget",
+        "region_step_selection": "Step 3 — Select region to refine",
+        "region_step_actions": "Step 4 — Generate",
+        "region_total_layers": "Total budget",
+        "region_first_pass_layers": "First-pass layers",
+        "region_region_layers": "Region layers",
+        "region_remaining": "Remaining",
+        "region_tool_rect": "Rectangle",
+        "region_tool_ellipse": "Ellipse",
+        "region_tool_brush": "Brush",
+        "region_tool_polygon": "Polygon",
+        "region_tool_clear": "Clear All",
+        "region_tool_clear_selected": "Clear Selected",
+        "region_exclude_mode": "Exclude Mode",
+        "region_toggle_exclude": "Toggle Include/Exclude",
+        "region_rotation": "Rotation",
+        "region_rotation_degrees": "{angle}°",
+        "region_brush_size": "Brush size",
+        "region_start_first_pass": "Start First Pass",
+        "region_paint_region": "Paint Selected Region",
+        "region_stop": "Stop",
+        "region_pass_history": "Pass History",
+        "region_original_label": "Original",
+        "region_preview_label": "Preview",
+        "region_preview_tab": "Preview",
+        "region_heatmap_tab": "Heatmap",
+        "region_no_image": "Please add an image first.",
+        "region_no_mask": "Please select a region first.",
+        "region_budget_exceeded": "Not enough remaining layers ({remaining} left, need {needed}).",
+        "region_first_pass_done": "First pass complete. {layers} layers used. Select a region to refine.",
+        "region_pass_done": "Region pass complete. {layers} layers added, {remaining} remaining.",
+        "region_no_first_pass": "Run the first pass before painting regions.",
+        "region_open_result_folder": "Open Result Folder",
+        "region_save_result_json": "Save Result JSON",
+        "region_small_screen_hint": "(for small screens)",
+        "region_restore_checkpoint": "Restore Checkpoint",
+        "region_checkpoint_active": "active",
+    },
+    "pt-br": {
+        "title": app_title(),
+        "subtitle": "Gere geometry JSON e importe para o editor de vinis do Forza Horizon.",
+        "language": "Idioma",
+        "process": "Processo do jogo",
+        "refresh": "Atualizar",
+        "generate_tab": "Gerar JSON",
+        "import_tab": "Importar",
+        "export_tab": "Exportar",
+        "tools_tab": "Ferramentas FH6",
+        "tutorial_tab": "Tutorial",
+        "market_banner": "O Mercado de predefinições está online: veja imagens, predefinições e pacotes JSON em painter6.com.",
+        "open_market": "Abrir mercado",
+        "images": "Imagens",
+        "add_images": "Adicionar imagens",
+        "remove_image": "Remover imagem selecionada",
+        "quality": "Perfil de qualidade",
+        "gpu_device": "Placa de vídeo",
+        "gpu_device_auto": "Automático (melhor GPU)",
+        "gpu_device_refresh": "Atualizar GPUs",
+        "gpu_device_hint": "Escolha a GPU que executa o gerador. Automático deixa o gerador escolher.",
+        "gpu_device_none": "Nenhuma GPU OpenCL detectada. O gerador vai escolher o dispositivo sozinho. Atualize os drivers NVIDIA/AMD/Intel se faltar alguma placa.",
+        "gpu_device_forced": "GPU do gerador: {device}",
+        "gpu_device_auto_log": "GPU do gerador: automático (o gerador escolhe o dispositivo).",
+        "gpu_device_unsupported": "{device} não pode ser forçada por este app ({vendor} não expõe um seletor de dispositivo). O gerador vai escolher sozinho.",
+        "gpu_device_missing": "A GPU selecionada antes não está mais disponível. Voltando para automático.",
+        "parallel_jobs": "Imagens em paralelo",
+        "parallel_jobs_hint": "Só ajuda com várias imagens na fila; uma imagem sozinha não muda.",
+        "parallel_jobs_active": "Executando {jobs} imagens ao mesmo tempo ({images} na fila). O ETA por camada fica desligado enquanto os trabalhos se sobrepõem.",
+        "parallel_jobs_progress": "{done}/{total} imagens concluídas",
+        "parallel_jobs_selected": "Geração paralela: até {jobs} imagens ao mesmo tempo.",
+        "parallel_jobs_off": "Geração paralela desligada: uma imagem por vez.",
+        "parallel_jobs_incomplete": "Apenas {done} de {total} imagens produziram resultado. A execução é tratada como falha; verifique o log detalhado.",
+        "import_preset": "Importar predefinição",
+        "open_preset_folder": "Abrir pasta de predefinições",
+        "custom_settings": "Usar configurações personalizadas",
+        "custom_layers": "Camadas de saída",
+        "custom_resolution": "Resolução máxima",
+        "custom_random": "Amostras aleatórias",
+        "custom_mutated": "Amostras mutadas",
+        "custom_save_at": "Salvar checkpoints",
+        "preprocess_mode": "Modo de pré-processamento",
+        "save_custom_preset": "Salvar como predefinição",
+        "custom_panel_title": "Configurações personalizadas",
+        "custom_panel_hint": "A predefinição selecionada preenche esses valores. Ative as configurações personalizadas se quiser editá-los antes de gerar.",
+        "generate_step_image": "Etapa 1 - Escolher imagens",
+        "generate_step_image_hint": "Adicione imagens PNG/JPG/BMP. Os JSONs são salvos ao lado do app em out/<nome da imagem>/<extensão>/; as imagens originais são copiadas para image/<extensão>/.",
+        "generate_step_quality": "Etapa 2 - Escolher qualidade",
+        "generate_step_quality_hint": "Perfis rápidos levam menos tempo. Perfis lentos usam mais tempo de GPU e geralmente ficam mais limpos.",
+        "generate_step_run": "Etapa 3 - Gerar",
+        "generate_step_run_hint": "Clique uma vez e aguarde. O progresso aparece nos Logs; o JSON gerado é adicionado automaticamente à página de Importação.",
+        "scroll_hint": "Adicione uma imagem, escolha uma predefinição e ajuste as configurações personalizadas se necessário.",
+        "start_generate": "Gerar com as configurações atuais",
+        "stop_generate": "Parar geração atual",
+        "open_output": "Abrir pasta de saída",
+        "preview": "Pré-visualização",
+        "preview_hint": "Selecione uma imagem ou JSON para pré-visualizar aqui.",
+        "preview_unavailable": "A pré-visualização não está disponível. Instale as dependências opcionais de pré-visualização ou continue sem ela.",
+        "preview_accuracy_note": "As versões atuais mantêm tamanhos fracionários de elipse para melhorar o resultado no jogo; a prévia é aproximada.",
+        "logs": "Logs",
+        "export_logs": "Exportar log detalhado",
+        "progress": "Progresso",
+        "json_files": "Arquivos Geometry JSON",
+        "add_json": "Adicionar JSON",
+        "remove_json": "Remover JSON selecionado",
+        "use_outputs": "Usar JSON gerado",
+        "step_game": "Etapa 1 - Jogo",
+        "step_game_hint": "Inicie o FH6, abra o Editor de Grupo de Vinil, carregue um modelo de esferas desagrupado e atualize a lista de processos.",
+        "step_template": "Etapa 2 - Modelo",
+        "step_template_hint": "Informe a contagem exata de camadas exibida pelo modelo atual dentro do jogo.",
+        "step_json": "Etapa 3 - JSON",
+        "step_json_hint": "Use o JSON gerado por este app ou adicione manualmente um geometry JSON. O JSON final concluído é selecionado automaticamente; para importar um JSON de checkpoint intermediário, use 'Adicionar JSON'.",
+        "step_import": "Etapa 4 - Importar",
+        "step_import_hint": "Clique em importar uma única vez. O app encontrará a tabela de camadas do FH6 com segurança e gravará o desenho.",
+        "advanced_options": "Opções avançadas",
+        "show_advanced": "Mostrar avançado",
+        "hide_advanced": "Ocultar avançado",
+        "import_preview": "Pré-visualização do JSON selecionado",
+        "game_profile": "Perfil do jogo",
+        "pid": "PID",
+        "layer_count": "Contagem de camadas do modelo",
+        "easy_import": "Importação fácil",
+        "easy_import_hint": "Para FH6, deixe os endereços vazios. O app reutilizará uma sessão ativa ou fará a localização automática antes de importar.",
+        "manual_count": "Endereço da contagem de camadas",
+        "manual_table": "Endereço da tabela de camadas",
+        "auto_locate": "Localizar FH6 automaticamente",
+        "import_json": "Importar JSON",
+        "diagnose": "Diagnosticar",
+        "save_snapshot": "Salvar snapshot da contagem",
+        "compare_snapshot": "Comparar snapshot",
+        "snapshot_count": "Contagem de camadas do snapshot",
+        "current_count": "Contagem de camadas atual",
+        "inspect_table": "Inspecionar tabela",
+        "table_address": "Tabela candidata",
+        "admin_note": "A importação precisa de permissão de administrador. Inicie este app como administrador se o OpenProcess falhar.",
+        "no_game": "Nenhum processo de jogo compatível detectado",
+        "layer_count_required": "A contagem de camadas do modelo é obrigatória. Informe a contagem exata exibida no jogo.",
+        "ready": "Pronto",
+        "running": "Em execução",
+        "done": "Concluído",
+        "failed": "Falhou",
+        "stopped": "Parado",
+        "no_generation_running": "Nenhuma geração está em execução.",
+        "stopping_generation": "Parando a geração atual...",
+        "generation_stopped": "Geração parada.",
+        "generator_recycled_layers": "O gerador reciclou camadas totalmente cobertas após {max_layer}/{total}; continuando. Isso é normal e não é um reinício completo.",
+        "existing_final_json_found": "JSON final existente encontrado para {image}; adicionado à Importação.",
+        "checkpoint_manual_hint": "A geração falhou ou foi interrompida. Qualquer JSON de checkpoint salvo permanece no disco; use 'Adicionar JSON' para importá-lo manualmente.",
+        "imported_presets": "{count} arquivo(s) de predefinição importado(s).",
+        "saved_preset": "Predefinição salva: {path}",
+        "no_image_selected": "Nenhuma imagem está selecionada.",
+        "no_json_selected": "Nenhum JSON está selecionado.",
+        "cannot_resume_checkpoint": "Checkpoints existentes podem ser reutilizados/importados, mas este gerador de GPU ainda não oferece retomada real a partir de checkpoint.",
+        "duplicate_image_name": "Nome de imagem duplicado",
+        "duplicate_image_rejected": "Imagens com o mesmo nome e a mesma extensão foram detectadas: {names}. Renomeie os arquivos e adicione-os novamente.",
+        "locating": "Procurando o modelo FH6 atual...",
+        "locating_wait": "Isso pode levar até 5 minutos. Mantenha o FH6 no Editor de Grupo de Vinil, não troque de menu e aguarde com paciência.",
+        "located": "Modelo FH6 localizado e verificado.",
+        "importing": "Importando JSON para o FH6...",
+        "json_too_small": "O JSON selecionado tem muito menos camadas desenháveis do que a capacidade útil do modelo. A importação ficará borrada; escolha um JSON com mais camadas.",
+        "json_needs_more_template_layers": "O FH precisa de 4 camadas de limite para salvar capa/aplicar corretamente. Use um modelo com pelo menos camadas desenháveis do JSON + 4.",
+        "safe_stop": "Parado antes de gravar porque nenhum modelo FH6 seguro foi encontrado.",
+        "update_available_title": "Atualização disponível",
+        "update_available_message": "Uma nova versão está disponível.\n\nAtual: v{current}\nMais recente: v{latest}",
+        "update_open_page": "Abrir página de atualização",
+        "update_later": "Depois",
+        "update_check_failed_title": "Falha ao verificar atualização",
+        "update_check_failed_message": "Não foi possível verificar atualizações. Você pode continuar usando o app.\n\n{error}",
+        "update_current": "Você já está na versão mais recente.",
+        "changelog": "Registro de alterações",
+        "runtime_folder": "Pasta de runtime/cache",
+        "open_runtime_folder": "Abrir pasta de runtime",
+        "runtime_location": "Arquivos de runtime/cache são armazenados ao lado do app: {runtime}. Cache do probe FH6: {probe}.",
+        "tutorial": """Fluxo para iniciantes
+
+1. Baixe o EXE único pelo GitHub Releases e execute diretamente. Usuários comuns não precisam de Python, .venv nem arquivos batch.
+
+2. Inicie o Forza Horizon 6 e entre em Create Vinyl Group / Vinyl Group Editor.
+
+3. Carregue ou crie um modelo feito de muitas camadas simples de sphere. Recomenda-se 500 camadas ou mais. Desagrupe o modelo antes de importar.
+
+4. Neste app, abra Gerar JSON, adicione uma imagem PNG/JPG/BMP, escolha um perfil de qualidade e clique para começar a gerar.
+
+5. Abra Importar. Adicione o JSON gerado ou clique em Usar JSON gerado. Mantenha o Perfil do jogo como Forza Horizon 6.
+
+6. Informe a contagem real de camadas do modelo atualmente carregado no jogo. No FH6, normalmente não é preciso digitar endereços de memória. Clique em Importar JSON; o app localizará automaticamente a tabela de camadas ativa do FH6 se necessário.
+
+7. Se a importação falhar com erros de OpenProcess ou permissão, feche o app e execute o EXE como administrador. Se o jogo foi reiniciado, entrou em outro menu ou recarregou o modelo, importe novamente com a nova contagem correta de camadas.
+
+Observações
+
+- A geração de JSON usa o gerador GPU/OpenCL incluído, então mantenha o driver de vídeo atualizado.
+- Os endereços atuais do FH6 só são válidos para o processo atual do jogo e o estado atual do editor.
+- Se o app não encontrar um modelo seguro, confirme que o editor está aberto, que o modelo está desagrupado e que a contagem de camadas está exata.
+
+Pintura Regional
+
+A Pintura Regional permite refinar iterativamente áreas específicas de uma imagem. Em vez de gerar todas as camadas de uma vez, você gera uma primeira passagem base e depois seleciona regiões (rostos, detalhes, etc.) para adicionar camadas extras apenas nessas áreas.
+
+1. Abra a aba Pintura Regional. Clique em Adicionar Imagem para selecionar um PNG/JPG/BMP.
+
+2. Escolha um Perfil de Qualidade — isso define o Orçamento total (valor stopAt do perfil). Ajuste as Camadas da 1ª passagem (quantas camadas gerar inicialmente na imagem inteira) e Camadas por região (quantas adicionar por região selecionada).
+
+3. No canvas Original, use a ferramenta Retângulo ou Elipse para desenhar uma região de seleção. A sobreposição vermelha mostra sua seleção. Use Limpar Máscara para remover a seleção.
+
+4. Clique em Iniciar 1ª Passagem para gerar as camadas base. Aguarde a conclusão — uma pré-visualização aparece no canvas direito.
+
+5. Desenhe uma região de seleção no canvas esquerdo e clique em Pintar Região Selecionada para adicionar mais camadas apenas dentro dessa região. Repita para cada área que deseja refinar.
+
+6. Após todas as passagens, use Abrir Pasta de Resultados para encontrar o base.json no diretório de saída, ou Salvar JSON do Resultado para exportá-lo para um local personalizado.
+
+7. Importe o JSON resultante usando a aba Importar — mesmo fluxo da geração padrão.
+
+Dicas
+
+- O orçamento restante é mostrado ao lado de Restante. Cada passagem regional consome camadas deste orçamento.
+- Você pode executar várias passagens regionais na mesma área para refinamento extra.
+""",
+        "region_paint_tab": "Pintura Regional",
+        "region_step_image": "Passo 1 — Escolher imagem e perfil",
+        "region_step_budget": "Passo 2 — Definir orçamento de camadas",
+        "region_step_selection": "Passo 3 — Selecionar região a refinar",
+        "region_step_actions": "Passo 4 — Gerar",
+        "region_total_layers": "Orçamento total",
+        "region_first_pass_layers": "Camadas da 1ª passagem",
+        "region_region_layers": "Camadas por região",
+        "region_remaining": "Restante",
+        "region_tool_rect": "Retângulo",
+        "region_tool_ellipse": "Elipse",
+        "region_tool_brush": "Pincel",
+        "region_tool_polygon": "Polígono",
+        "region_tool_clear": "Limpar todas",
+        "region_tool_clear_selected": "Limpar selecionada",
+        "region_exclude_mode": "Modo de exclusão",
+        "region_toggle_exclude": "Alternar inclusão/exclusão",
+        "region_rotation": "Rotação",
+        "region_rotation_degrees": "{angle}°",
+        "region_brush_size": "Tamanho do pincel",
+        "region_start_first_pass": "Iniciar 1ª Passagem",
+        "region_paint_region": "Pintar Região Selecionada",
+        "region_stop": "Parar",
+        "region_pass_history": "Histórico",
+        "region_original_label": "Original",
+        "region_preview_label": "Pré-visualização",
+        "region_preview_tab": "Pré-visualização",
+        "region_heatmap_tab": "Mapa de calor",
+        "region_no_image": "Adicione uma imagem primeiro.",
+        "region_no_mask": "Selecione uma região primeiro.",
+        "region_budget_exceeded": "Camadas restantes insuficientes ({remaining} restam, {needed} necessárias).",
+        "region_first_pass_done": "1ª passagem concluída. {layers} camadas usadas. Selecione uma região para refinar.",
+        "region_pass_done": "Passagem regional concluída. {layers} camadas adicionadas, {remaining} restantes.",
+        "region_no_first_pass": "Execute a primeira passagem antes de pintar regiões.",
+        "region_open_result_folder": "Abrir Pasta de Resultados",
+        "region_save_result_json": "Salvar JSON do Resultado",
+        "region_small_screen_hint": "(para telas pequenas)",
+        "region_restore_checkpoint": "Restaurar Ponto de Verificação",
+        "region_checkpoint_active": "ativo",
+    },
+    "zh": {
+        "title": app_title(),
+        "subtitle": "生成 geometry JSON，并导入到 Forza Horizon 的 Vinyl Group 编辑器。",
+        "language": "语言",
+        "process": "游戏进程",
+        "refresh": "刷新",
+        "generate_tab": "生成 JSON",
+        "import_tab": "导入",
+        "export_tab": "导出",
+        "tools_tab": "FH6 工具",
+        "tutorial_tab": "教程",
+        "market_banner": "预设市场已上线：在 painter6.com 浏览玩家分享的图片、预设和 JSON 包。",
+        "open_market": "打开预设市场",
+        "images": "图片",
+        "add_images": "添加图片",
+        "remove_image": "移除选中图片",
+        "quality": "品质配置",
+        "gpu_device": "显卡",
+        "gpu_device_auto": "自动（最佳 GPU）",
+        "gpu_device_refresh": "刷新显卡",
+        "gpu_device_hint": "选择运行生成器的 GPU。自动模式由生成器自行选择。",
+        "gpu_device_none": "未检测到 OpenCL 显卡。生成器将自行选择设备。如果缺少显卡，请更新 NVIDIA/AMD/Intel 驱动。",
+        "gpu_device_forced": "生成器显卡：{device}",
+        "gpu_device_auto_log": "生成器显卡：自动（由生成器选择设备）。",
+        "gpu_device_unsupported": "本应用无法强制使用 {device}（{vendor} 未提供设备选择开关）。生成器将自行选择设备。",
+        "gpu_device_missing": "之前选择的显卡已不可用，已恢复为自动。",
+        "parallel_jobs": "并行图片数",
+        "parallel_jobs_hint": "仅在队列中有多张图片时有效；单张图片速度不变。",
+        "parallel_jobs_active": "同时生成 {jobs} 张图片（队列 {images} 张）。并行期间关闭逐层预计剩余时间。",
+        "parallel_jobs_progress": "已完成 {done}/{total} 张图片",
+        "parallel_jobs_selected": "并行生成：最多同时 {jobs} 张图片。",
+        "parallel_jobs_off": "并行生成已关闭：每次一张图片。",
+        "parallel_jobs_incomplete": "只有 {done}/{total} 张图片产生了结果。本次运行按失败处理，请查看详细日志。",
+        "import_preset": "导入预设",
+        "open_preset_folder": "打开预设目录",
+        "custom_settings": "使用自定义参数",
+        "custom_layers": "输出层数",
+        "custom_resolution": "最大分辨率",
+        "custom_random": "随机样本",
+        "custom_mutated": "变异样本",
+        "custom_save_at": "保存节点",
+        "preprocess_mode": "预处理模式",
+        "save_custom_preset": "保存为预设",
+        "custom_panel_title": "自定义参数",
+        "custom_panel_hint": "上方预设会自动填入这些参数；勾选使用自定义参数后可直接修改。",
+        "generate_step_image": "第 1 步 - 选择图片",
+        "generate_step_image_hint": "添加 PNG/JPG/BMP 图片。JSON 保存在软件旁的 out/<图片名>/<扩展名>/，原图备份在 image/<扩展名>/。",
+        "generate_step_quality": "第 2 步 - 选择品质",
+        "generate_step_quality_hint": "快速配置耗时短；慢速配置会占用更多 GPU 时间，通常画面更干净。",
+        "generate_step_run": "第 3 步 - 开始生成",
+        "generate_step_run_hint": "点击一次后等待。进度会显示在日志里，生成的 JSON 会自动加入导入页面。",
+        "scroll_hint": "添加图片、选择预设；需要时直接修改下方自定义参数。",
+        "start_generate": "按当前配置生成",
+        "stop_generate": "中断当前生成",
+        "open_output": "打开输出目录",
+        "generate_backup_saved": "原图已备份到 {path}",
+        "generate_output_folder": "该图片生成的所有 JSON 都保存在 {path}",
+        "generate_backup_failed": "原图备份失败：{error}",
+        "preview": "预览",
+        "preview_hint": "选择图片或 JSON 后会在这里预览。",
+        "preview_unavailable": "当前环境无法显示预览。可安装可选预览依赖，也可以直接继续生成或导入。",
+        "preview_accuracy_note": "当前版本保留椭圆浮点尺寸，局内导入更准；预览仅供近似参考。",
+        "logs": "日志",
+        "export_logs": "导出详细日志",
+        "progress": "进度",
+        "json_files": "Geometry JSON 文件",
+        "add_json": "添加 JSON",
+        "remove_json": "移除选中 JSON",
+        "use_outputs": "使用已生成 JSON",
+        "step_game": "第 1 步 - 游戏",
+        "step_game_hint": "启动 FH6，进入 Vinyl Group Editor，载入未分组的球形模板，然后刷新进程列表。",
+        "step_template": "第 2 步 - 模板",
+        "step_template_hint": "填写游戏里当前模板显示的真实层数。",
+        "step_json": "第 3 步 - JSON",
+        "step_json_hint": "使用本软件生成的 JSON，或手动添加 geometry JSON。生成完成后会自动选择该图的最终 JSON；如需导入中途保存的 checkpoint JSON，请点击“添加 JSON”手动选择。",
+        "step_import": "第 4 步 - 导入",
+        "step_import_hint": "只点一次导入。软件会安全定位 FH6 图层表，然后写入图案。",
+        "advanced_options": "高级选项",
+        "show_advanced": "显示高级",
+        "hide_advanced": "隐藏高级",
+        "import_preview": "已选 JSON 预览",
+        "game_profile": "游戏 profile",
+        "pid": "PID",
+        "layer_count": "模板层数",
+        "easy_import": "简化导入",
+        "easy_import_hint": "FH6 通常不需要手填地址。留空即可复用当前 session，或在导入前自动定位。",
+        "manual_count": "层数地址",
+        "manual_table": "图层表地址",
+        "auto_locate": "自动定位 FH6",
+        "import_json": "导入 JSON",
+        "diagnose": "诊断",
+        "save_snapshot": "保存层数快照",
+        "compare_snapshot": "对比快照",
+        "snapshot_count": "快照层数",
+        "current_count": "当前层数",
+        "inspect_table": "精查 table",
+        "table_address": "候选 table",
+        "admin_note": "导入需要管理员权限。如果日志出现 OpenProcess 失败，请用管理员身份启动本程序。",
+        "no_game": "未检测到支持的游戏进程",
+        "layer_count_required": "请填写模板层数。输入游戏中显示的精确层数。",
+        "ready": "就绪",
+        "running": "运行中",
+        "done": "完成",
+        "failed": "失败",
+        "stopped": "已中断",
+        "no_generation_running": "当前没有正在生成的任务。",
+        "stopping_generation": "正在中断当前生成...",
+        "generation_stopped": "生成已中断。",
+        "generator_recycled_layers": "生成器在 {max_layer}/{total} 后回收了被完全遮挡的旧图层，正在继续。这是正常回收，不是重新开始。",
+        "existing_final_json_found": "发现 {image} 已有最终 JSON，已加入导入列表。",
+        "checkpoint_manual_hint": "本次生成失败或已中断。中途保存的 checkpoint JSON 仍保留在磁盘，可通过“添加 JSON”手动选择。",
+        "imported_presets": "已导入 {count} 个预设文件。",
+        "saved_preset": "已保存预设：{path}",
+        "no_image_selected": "没有选中图片。",
+        "no_json_selected": "没有选中 JSON。",
+        "cannot_resume_checkpoint": "已有 checkpoint 可以复用/导入，但当前 GPU 生成器还不支持真正从 checkpoint 继续生成。",
+        "duplicate_image_name": "图片名称重复",
+        "duplicate_image_rejected": "检测到为相同命名相同后缀的图片：{names}，请重命名图片",
+        "locating": "正在查找当前 FH6 模板...",
+        "locating_wait": "这一步最长可能需要 5 分钟。请保持 FH6 停留在 Vinyl Group Editor，不要切换菜单，耐心等待。",
+        "located": "已安全定位并验证 FH6 模板。",
+        "importing": "正在导入 JSON 到 FH6...",
+        "json_too_small": "当前 JSON 可绘制层数远少于模板可用容量，导入会很糊；请换用更高层数的 JSON。",
+        "json_needs_more_template_layers": "FH 需要预留 4 个边界层，才能正常保存封面和贴到车上。模板层数建议至少为 JSON 可绘制层数 + 4。",
+        "safe_stop": "未找到安全 FH6 模板，已在写入前停止。",
+        "update_available_title": "发现新版本",
+        "update_available_message": "检测到新版本。\n\n当前版本：v{current}\n最新版本：v{latest}",
+        "update_open_page": "打开更新页面",
+        "update_later": "稍后再说",
+        "update_check_failed_title": "更新检查失败",
+        "update_check_failed_message": "无法检查更新。你可以继续使用当前版本。\n\n{error}",
+        "update_current": "当前已经是最新版本。",
+        "changelog": "更新内容",
+        "runtime_folder": "运行/缓存目录",
+        "open_runtime_folder": "打开运行缓存目录",
+        "runtime_location": "运行缓存文件会保存在软件旁边：{runtime}。FH6 定位缓存：{probe}。",
+        "tutorial": """小白流程
+
+1. 从 GitHub Releases 下载单文件 EXE，直接运行。普通用户不需要 Python、.venv 或 bat 文件。
+
+2. 启动 Forza Horizon 6，进入 Create Vinyl Group / Vinyl Group Editor。
+
+3. 载入或新建一个由大量 sphere 图层组成的模板。建议 500 层以上。导入前必须先 ungroup。
+
+4. 在本软件的"生成 JSON"页添加 PNG/JPG/BMP 图片，选择品质配置，点击"开始生成"。
+
+5. 打开"导入"页，添加生成的 JSON，或点击"使用已生成 JSON"。游戏 profile 保持 Forza Horizon 6。
+
+6. 填写游戏里当前模板的真实层数。FH6 通常不需要手动填写内存地址。点击"导入 JSON"，软件会在需要时自动定位当前 FH6 图层表。
+
+7. 如果日志提示 OpenProcess 或权限失败，请关闭软件，用管理员身份重新运行 EXE。如果重启过游戏、切换过菜单或重新加载模板，请用正确层数重新导入。
+
+说明
+
+- JSON 生成使用自带的 GPU/OpenCL 生成器，请保持显卡驱动正常。
+- FH6 地址只对当前游戏进程和当前编辑器状态有效。
+- 如果软件找不到安全模板，请确认编辑器仍然打开、模板已经 ungroup、层数填写完全正确。
+
+区域绘制
+
+区域绘制可以迭代地细化图片的特定区域。不是一次性生成所有图层，而是先生成全图基础图层，然后选择区域（脸部、细节等），仅对这些区域添加额外图层。
+
+1. 打开区域绘制标签页。点击添加图片选择一个 PNG/JPG/BMP。
+
+2. 选择一个品质配置 — 这会设置总预算（配置的 stopAt 值）。调整首轮图层数（最初在整个图片上生成多少层）和区域图层数（每个选中区域添加多少层）。
+
+3. 在原图画布上，使用矩形或椭圆工具绘制选择区域。红色叠加层显示你的选择。使用清除蒙版来移除选择。
+
+4. 点击开始首轮生成来生成基础图层。等待完成 — 预览会出现在右侧画布上。
+
+5. 在左侧画布上绘制选择区域，然后点击绘制选中区域，仅在该区域内添加更多图层。对每个要细化的区域重复此操作。
+
+6. 所有轮次完成后，使用打开结果文件夹在输出目录中找到 base.json，或使用保存结果 JSON 将其导出到自定义位置。
+
+7. 使用导入标签页导入结果 JSON — 与标准生成流程相同。
+
+提示
+
+- 剩余预算显示在"剩余"旁边。每个区域轮次都会消耗此预算中的图层。
+- 你可以在同一区域运行多个区域轮次以获得额外的细化效果。
+""",
+        "region_paint_tab": "区域绘制",
+        "region_step_image": "第 1 步 — 选择图片和配置",
+        "region_step_budget": "第 2 步 — 设置图层预算",
+        "region_step_selection": "第 3 步 — 选择要细化的区域",
+        "region_step_actions": "第 4 步 — 生成",
+        "region_total_layers": "总预算",
+        "region_first_pass_layers": "首轮图层数",
+        "region_region_layers": "区域图层数",
+        "region_remaining": "剩余",
+        "region_tool_rect": "矩形",
+        "region_tool_ellipse": "椭圆",
+        "region_tool_brush": "画笔",
+        "region_tool_polygon": "多边形",
+        "region_tool_clear": "清除全部",
+        "region_tool_clear_selected": "清除选中",
+        "region_exclude_mode": "排除模式",
+        "region_toggle_exclude": "切换排除/选中",
+        "region_rotation": "旋转",
+        "region_rotation_degrees": "{angle}°",
+        "region_brush_size": "画笔大小",
+        "region_start_first_pass": "开始首轮生成",
+        "region_paint_region": "绘制选中区域",
+        "region_stop": "停止",
+        "region_pass_history": "轮次历史",
+        "region_original_label": "原图",
+        "region_preview_label": "预览",
+        "region_preview_tab": "预览",
+        "region_heatmap_tab": "热力图",
+        "region_no_image": "请先添加一张图片。",
+        "region_no_mask": "请先选择一个区域。",
+        "region_budget_exceeded": "剩余图层不足（剩余 {remaining}，需要 {needed}）。",
+        "region_first_pass_done": "首轮完成。已使用 {layers} 图层。选择一个区域以细化。",
+        "region_pass_done": "区域轮次完成。添加了 {layers} 图层，剩余 {remaining}。",
+        "region_no_first_pass": "请先运行首轮生成。",
+        "region_open_result_folder": "打开结果文件夹",
+        "region_save_result_json": "保存结果 JSON",
+        "region_small_screen_hint": "（小屏幕备用）",
+        "region_restore_checkpoint": "恢复检查点",
+        "region_checkpoint_active": "当前",
+    },
+    "zh-tw": {
+        "title": app_title(),
+        "subtitle": "產生 geometry JSON，並匯入到 Forza Horizon 的 Vinyl Group 編輯器。",
+        "language": "語言",
+        "process": "遊戲處理程序",
+        "refresh": "重新整理",
+        "generate_tab": "產生 JSON",
+        "import_tab": "匯入",
+        "export_tab": "匯出",
+        "tools_tab": "FH6 工具",
+        "tutorial_tab": "教學",
+        "market_banner": "預設市場已上線：在 painter6.com 瀏覽玩家分享的圖片、預設和 JSON 包。",
+        "open_market": "開啟預設市場",
+        "images": "圖片",
+        "add_images": "新增圖片",
+        "remove_image": "移除選取圖片",
+        "quality": "品質設定",
+        "gpu_device": "顯示卡",
+        "gpu_device_auto": "自動（最佳 GPU）",
+        "gpu_device_refresh": "重新掃描顯示卡",
+        "gpu_device_hint": "選擇執行產生器的 GPU。自動模式由產生器自行選擇。",
+        "gpu_device_none": "未偵測到 OpenCL 顯示卡。產生器會自行選擇裝置。若缺少顯示卡，請更新 NVIDIA/AMD/Intel 驅動程式。",
+        "gpu_device_forced": "產生器顯示卡：{device}",
+        "gpu_device_auto_log": "產生器顯示卡：自動（由產生器選擇裝置）。",
+        "gpu_device_unsupported": "本應用程式無法強制使用 {device}（{vendor} 未提供裝置選擇開關）。產生器會自行選擇裝置。",
+        "gpu_device_missing": "之前選擇的顯示卡已不可用，已恢復為自動。",
+        "parallel_jobs": "並行圖片數",
+        "parallel_jobs_hint": "僅在佇列中有多張圖片時有效；單張圖片速度不變。",
+        "parallel_jobs_active": "同時產生 {jobs} 張圖片（佇列 {images} 張）。並行期間關閉逐層預計剩餘時間。",
+        "parallel_jobs_progress": "已完成 {done}/{total} 張圖片",
+        "parallel_jobs_selected": "並行產生：最多同時 {jobs} 張圖片。",
+        "parallel_jobs_off": "並行產生已關閉：每次一張圖片。",
+        "parallel_jobs_incomplete": "只有 {done}/{total} 張圖片產生了結果。本次執行視為失敗，請查看詳細記錄。",
+        "import_preset": "匯入預設",
+        "open_preset_folder": "開啟預設目錄",
+        "custom_settings": "使用自訂參數",
+        "custom_layers": "輸出圖層數",
+        "custom_resolution": "最大解析度",
+        "custom_random": "隨機樣本",
+        "custom_mutated": "變異樣本",
+        "custom_save_at": "儲存檢查點",
+        "preprocess_mode": "預處理模式",
+        "save_custom_preset": "儲存為預設",
+        "custom_panel_title": "自訂參數",
+        "custom_panel_hint": "上方預設會自動填入這些參數；勾選使用自訂參數後可直接修改。",
+        "generate_step_image": "第 1 步 - 選擇圖片",
+        "generate_step_image_hint": "新增 PNG/JPG/BMP 圖片。JSON 儲存在軟體旁的 out/<圖片名稱>/<副檔名>/，原圖備份在 image/<副檔名>/。",
+        "generate_step_quality": "第 2 步 - 選擇品質",
+        "generate_step_quality_hint": "快速設定耗時較短；慢速設定會佔用更多 GPU 時間，通常畫面較乾淨。",
+        "generate_step_run": "第 3 步 - 開始產生",
+        "generate_step_run_hint": "點擊一次後等待。進度會顯示在日誌中，產生的 JSON 會自動加入匯入頁面。",
+        "scroll_hint": "新增圖片、選擇預設；需要時直接修改下方自訂參數。",
+        "start_generate": "按目前設定產生",
+        "stop_generate": "中斷目前產生",
+        "open_output": "開啟輸出目錄",
+        "preview": "預覽",
+        "preview_hint": "選擇圖片或 JSON 後會在這裡預覽。",
+        "preview_unavailable": "目前環境無法顯示預覽。可安裝選用預覽相依套件，也可以直接繼續產生或匯入。",
+        "preview_accuracy_note": "目前版本保留橢圓浮點尺寸，遊戲內匯入更準；預覽僅供近似參考。",
+        "logs": "日誌",
+        "export_logs": "匯出詳細日誌",
+        "progress": "進度",
+        "json_files": "Geometry JSON 檔案",
+        "add_json": "新增 JSON",
+        "remove_json": "移除選取 JSON",
+        "use_outputs": "使用已產生 JSON",
+        "step_game": "第 1 步 - 遊戲",
+        "step_game_hint": "啟動 FH6，進入 Vinyl Group Editor，載入未群組的球體模板，然後重新整理處理程序清單。",
+        "step_template": "第 2 步 - 模板",
+        "step_template_hint": "填入遊戲中目前模板顯示的實際圖層數。",
+        "step_json": "第 3 步 - JSON",
+        "step_json_hint": "使用本軟體產生的 JSON，或手動新增 geometry JSON。產生完成後會自動選擇該圖的最終 JSON；如需匯入中途儲存的 checkpoint JSON，請點擊「新增 JSON」手動選擇。",
+        "step_import": "第 4 步 - 匯入",
+        "step_import_hint": "只點一次匯入。軟體會安全定位 FH6 圖層表，然後寫入圖案。",
+        "advanced_options": "進階選項",
+        "show_advanced": "顯示進階",
+        "hide_advanced": "隱藏進階",
+        "import_preview": "已選 JSON 預覽",
+        "game_profile": "遊戲設定檔",
+        "pid": "PID",
+        "layer_count": "模板圖層數",
+        "easy_import": "簡易匯入",
+        "easy_import_hint": "FH6 通常不需要手填位址。留空即可重複使用目前 session，或在匯入前自動定位。",
+        "manual_count": "圖層數位址",
+        "manual_table": "圖層表位址",
+        "auto_locate": "自動定位 FH6",
+        "import_json": "匯入 JSON",
+        "diagnose": "診斷",
+        "save_snapshot": "儲存圖層數快照",
+        "compare_snapshot": "比對快照",
+        "snapshot_count": "快照圖層數",
+        "current_count": "目前圖層數",
+        "inspect_table": "檢查 table",
+        "table_address": "候選 table",
+        "admin_note": "匯入需要管理員權限。如果日誌出現 OpenProcess 失敗，請用管理員身分啟動本程式。",
+        "no_game": "未偵測到支援的遊戲處理程序",
+        "layer_count_required": "請填寫模板圖層數。輸入遊戲中顯示的精確圖層數。",
+        "ready": "就緒",
+        "running": "執行中",
+        "done": "完成",
+        "failed": "失敗",
+        "stopped": "已中斷",
+        "no_generation_running": "目前沒有正在產生的任務。",
+        "stopping_generation": "正在中斷目前產生…",
+        "generation_stopped": "產生已中斷。",
+        "generator_recycled_layers": "產生器在 {max_layer}/{total} 後回收了被完全遮擋的舊圖層，正在繼續。這是正常回收，不是重新開始。",
+        "existing_final_json_found": "發現 {image} 已有最終 JSON，已加入匯入清單。",
+        "checkpoint_manual_hint": "本次產生失敗或已中斷。中途儲存的 checkpoint JSON 仍保留在磁碟，可透過「新增 JSON」手動選擇。",
+        "imported_presets": "已匯入 {count} 個預設檔案。",
+        "saved_preset": "已儲存預設：{path}",
+        "no_image_selected": "沒有選取圖片。",
+        "no_json_selected": "沒有選取 JSON。",
+        "cannot_resume_checkpoint": "已有 checkpoint 可以重複使用／匯入，但目前 GPU 產生器還不支援真正從 checkpoint 繼續產生。",
+        "duplicate_image_name": "圖片名稱重複",
+        "duplicate_image_rejected": "偵測到相同命名且相同副檔名的圖片：{names}，請重新命名圖片",
+        "locating": "正在尋找目前 FH6 模板…",
+        "locating_wait": "這一步最長可能需要 5 分鐘。請保持 FH6 停留在 Vinyl Group Editor，不要切換選單，耐心等候。",
+        "located": "已安全定位並驗證 FH6 模板。",
+        "importing": "正在匯入 JSON 到 FH6…",
+        "json_too_small": "目前 JSON 可繪製圖層數遠少於模板可用容量，匯入會很模糊；請改用較高圖層數的 JSON。",
+        "json_needs_more_template_layers": "FH 需要預留 4 個邊界圖層，才能正常儲存封面和貼到車上。模板圖層數建議至少為 JSON 可繪製圖層數 + 4。",
+        "safe_stop": "未找到安全 FH6 模板，已在寫入前停止。",
+        "update_available_title": "發現新版本",
+        "update_available_message": "偵測到新版本。\n\n目前版本：v{current}\n最新版本：v{latest}",
+        "update_open_page": "開啟更新頁面",
+        "update_later": "稍後再說",
+        "update_check_failed_title": "更新檢查失敗",
+        "update_check_failed_message": "無法檢查更新。你可以繼續使用目前版本。\n\n{error}",
+        "update_current": "目前已是最新版本。",
+        "changelog": "更新內容",
+        "runtime_folder": "執行／快取目錄",
+        "open_runtime_folder": "開啟執行快取目錄",
+        "runtime_location": "執行快取檔案會儲存在軟體旁邊：{runtime}。FH6 定位快取：{probe}。",
+        "tutorial": """新手流程
+
+1. 從 GitHub Releases 下載單一檔案 EXE，直接執行。一般使用者不需要 Python、.venv 或 bat 檔案。
+
+2. 啟動 Forza Horizon 6，進入 Create Vinyl Group / Vinyl Group Editor。
+
+3. 載入或新建一個由大量 sphere 圖層組成的模板。建議 500 層以上。匯入前必須先 ungroup。
+
+4. 在本軟體的「產生 JSON」頁新增 PNG/JPG/BMP 圖片，選擇品質設定，點擊「開始產生」。
+
+5. 開啟「匯入」頁，新增產生的 JSON，或點擊「使用已產生 JSON」。遊戲設定檔保持 Forza Horizon 6。
+
+6. 填入遊戲中目前模板的實際圖層數。FH6 通常不需要手動填寫記憶體位址。點擊「匯入 JSON」，軟體會在需要時自動定位目前 FH6 圖層表。
+
+7. 如果日誌提示 OpenProcess 或權限失敗，請關閉軟體，用管理員身分重新執行 EXE。如果重啟過遊戲、切換過選單或重新載入模板，請用正確圖層數重新匯入。
+
+說明
+
+- JSON 產生使用內建的 GPU/OpenCL 產生器，請保持顯示卡驅動程式正常。
+- FH6 位址只對目前遊戲處理程序和目前編輯器狀態有效。
+- 如果軟體找不到安全模板，請確認編輯器仍然開啟、模板已經 ungroup、圖層數填寫完全正確。
+
+區域繪製
+
+區域繪製可以迭代地細化圖片的特定區域。不是一次性生成所有圖層，而是先生成全圖基礎圖層，然後選擇區域（臉部、細節等），僅對這些區域新增額外圖層。
+
+1. 開啟區域繪製標籤頁。點擊新增圖片選擇一個 PNG/JPG/BMP。
+
+2. 選擇一個品質設定 — 這會設定總預算（設定的 stopAt 值）。調整首輪圖層數（最初在整個圖片上產生多少層）和區域圖層數（每個選中區域新增多少層）。
+
+3. 在原圖畫布上，使用矩形或橢圓工具繪製選擇區域。紅色疊加層顯示你的選擇。使用清除遮罩來移除選擇。
+
+4. 點擊開始首輪產生來產生基礎圖層。等待完成 — 預覽會出現在右側畫布上。
+
+5. 在左側畫布上繪製選擇區域，然後點擊繪製選中區域，僅在該區域內新增更多圖層。對每個要細化的區域重複此操作。
+
+6. 所有輪次完成後，使用開啟結果資料夾在輸出目錄中找到 base.json，或使用儲存結果 JSON 將其匯出到自訂位置。
+
+7. 使用匯入標籤頁匯入結果 JSON — 與標準產生流程相同。
+
+提示
+
+- 剩餘預算顯示在「剩餘」旁邊。每個區域輪次都會消耗此預算中的圖層。
+- 你可以在同一區域執行多個區域輪次以獲得額外的細化效果。
+""",
+        "region_paint_tab": "區域繪製",
+        "region_step_image": "第 1 步 — 選擇圖片和設定",
+        "region_step_budget": "第 2 步 — 設定圖層預算",
+        "region_step_selection": "第 3 步 — 選擇要細化的區域",
+        "region_step_actions": "第 4 步 — 產生",
+        "region_total_layers": "總預算",
+        "region_first_pass_layers": "首輪圖層數",
+        "region_region_layers": "區域圖層數",
+        "region_remaining": "剩餘",
+        "region_tool_rect": "矩形",
+        "region_tool_ellipse": "橢圓",
+        "region_tool_brush": "畫筆",
+        "region_tool_polygon": "多邊形",
+        "region_tool_clear": "清除全部",
+        "region_tool_clear_selected": "清除選中",
+        "region_exclude_mode": "排除模式",
+        "region_toggle_exclude": "切換排除/選中",
+        "region_rotation": "旋轉",
+        "region_rotation_degrees": "{angle}°",
+        "region_brush_size": "畫筆大小",
+        "region_start_first_pass": "開始首輪產生",
+        "region_paint_region": "繪製選中區域",
+        "region_stop": "停止",
+        "region_pass_history": "輪次歷史",
+        "region_original_label": "原圖",
+        "region_preview_label": "預覽",
+        "region_preview_tab": "預覽",
+        "region_heatmap_tab": "熱力圖",
+        "region_no_image": "請先新增一張圖片。",
+        "region_no_mask": "請先選擇一個區域。",
+        "region_budget_exceeded": "剩餘圖層不足（剩餘 {remaining}，需要 {needed}）。",
+        "region_first_pass_done": "首輪完成。已使用 {layers} 圖層。選擇一個區域以細化。",
+        "region_pass_done": "區域輪次完成。新增了 {layers} 圖層，剩餘 {remaining}。",
+        "region_no_first_pass": "請先執行首輪產生。",
+        "region_open_result_folder": "開啟結果資料夾",
+        "region_save_result_json": "儲存結果 JSON",
+        "region_small_screen_hint": "（小螢幕備用）",
+        "region_restore_checkpoint": "復原檢查點",
+        "region_checkpoint_active": "當前",
+    },
+    "ko": {
+        "title": app_title(),
+        "subtitle": "geometry JSON을 생성하고 Forza Horizon 비닐 그룹 편집기로 가져옵니다.",
+        "language": "언어",
+        "process": "게임 프로세스",
+        "refresh": "새로고침",
+        "generate_tab": "JSON 생성",
+        "import_tab": "가져오기",
+        "export_tab": "내보내기",
+        "tools_tab": "FH6 도구",
+        "tutorial_tab": "튜토리얼",
+        "market_banner": "프리셋 마켓이 열렸습니다. painter6.com에서 공유 이미지, 프리셋, JSON 패키지를 둘러보세요.",
+        "open_market": "마켓 열기",
+        "images": "이미지",
+        "add_images": "이미지 추가",
+        "remove_image": "선택한 이미지 제거",
+        "quality": "품질 프로필",
+        "gpu_device": "그래픽 카드",
+        "gpu_device_auto": "자동 (최적 GPU)",
+        "gpu_device_refresh": "GPU 새로 고침",
+        "gpu_device_hint": "생성기를 실행할 GPU를 선택하세요. 자동은 생성기가 직접 고릅니다.",
+        "gpu_device_none": "OpenCL GPU를 찾지 못했습니다. 생성기가 직접 장치를 선택합니다. 카드가 보이지 않으면 NVIDIA/AMD/Intel 드라이버를 업데이트하세요.",
+        "gpu_device_forced": "생성기 GPU: {device}",
+        "gpu_device_auto_log": "생성기 GPU: 자동 (생성기가 장치를 선택).",
+        "gpu_device_unsupported": "이 앱에서는 {device} 장치를 강제할 수 없습니다 ({vendor}에 장치 선택기가 없음). 생성기가 직접 장치를 선택합니다.",
+        "gpu_device_missing": "이전에 선택한 GPU를 사용할 수 없어 자동으로 되돌렸습니다.",
+        "parallel_jobs": "동시 이미지 수",
+        "parallel_jobs_hint": "여러 이미지가 대기 중일 때만 효과가 있습니다. 한 장은 그대로입니다.",
+        "parallel_jobs_active": "{jobs}장을 동시에 생성합니다 (대기 {images}장). 작업이 겹치는 동안 레이어별 예상 시간은 꺼집니다.",
+        "parallel_jobs_progress": "{done}/{total}장 완료",
+        "parallel_jobs_selected": "병렬 생성: 최대 {jobs}장 동시.",
+        "parallel_jobs_off": "병렬 생성 꺼짐: 한 번에 한 장.",
+        "parallel_jobs_incomplete": "{total}장 중 {done}장만 결과를 만들었습니다. 실행을 실패로 처리합니다. 자세한 로그를 확인하세요.",
+        "import_preset": "프리셋 가져오기",
+        "open_preset_folder": "프리셋 폴더 열기",
+        "custom_settings": "사용자 설정 사용",
+        "custom_layers": "출력 레이어",
+        "custom_resolution": "최대 해상도",
+        "custom_random": "무작위 샘플",
+        "custom_mutated": "변형 샘플",
+        "custom_save_at": "체크포인트 저장",
+        "preprocess_mode": "전처리 모드",
+        "save_custom_preset": "프리셋으로 저장",
+        "custom_panel_title": "사용자 설정",
+        "custom_panel_hint": "선택한 프리셋 값이 자동으로 채워집니다. 생성 전에 값을 바꾸려면 사용자 설정을 켜세요.",
+        "generate_step_image": "1단계 - 이미지 선택",
+        "generate_step_image_hint": "PNG/JPG/BMP 이미지를 추가하세요. JSON은 앱 폴더의 out/<이미지 이름>/<확장자>/에 저장되고 원본 이미지는 image/<확장자>/에 백업됩니다.",
+        "generate_step_quality": "2단계 - 품질 선택",
+        "generate_step_quality_hint": "빠른 프로필은 시간이 적게 걸립니다. 느린 프로필은 GPU 시간을 더 쓰지만 보통 더 깔끔합니다.",
+        "generate_step_run": "3단계 - 생성",
+        "generate_step_run_hint": "한 번 클릭한 뒤 기다리세요. 진행 상황은 로그에 표시되고, 생성된 JSON은 가져오기 페이지에 자동으로 추가됩니다.",
+        "scroll_hint": "이미지를 추가하고 프리셋을 선택한 뒤, 필요하면 사용자 설정을 조정하세요.",
+        "start_generate": "현재 설정으로 생성",
+        "stop_generate": "현재 생성 중지",
+        "open_output": "출력 폴더 열기",
+        "preview": "미리보기",
+        "preview_hint": "이미지나 JSON을 선택하면 여기에 미리보기가 표시됩니다.",
+        "preview_unavailable": "미리보기를 사용할 수 없습니다. 선택 미리보기 의존성을 설치하거나, 미리보기 없이 계속 진행하세요.",
+        "preview_accuracy_note": "현재 버전은 게임 내 가져오기 정확도를 위해 타원 소수 크기를 유지합니다. 미리보기는 근사치입니다.",
+        "logs": "로그",
+        "export_logs": "자세한 로그보내기",
+        "progress": "진행 상황",
+        "json_files": "Geometry JSON 파일",
+        "add_json": "JSON 추가",
+        "remove_json": "선택한 JSON 제거",
+        "use_outputs": "생성된 JSON 사용",
+        "step_game": "1단계 - 게임",
+        "step_game_hint": "FH6를 실행하고 비닐 그룹 편집기를 연 뒤, 그룹 해제된 구체 템플릿을 불러오고 프로세스 목록을 새로고침하세요.",
+        "step_template": "2단계 - 템플릿",
+        "step_template_hint": "현재 게임 안 템플릿에 표시된 정확한 레이어 수를 입력하세요.",
+        "step_json": "3단계 - JSON",
+        "step_json_hint": "이 앱에서 생성한 JSON을 사용하거나 geometry JSON을 직접 추가하세요. 생성이 완료되면 해당 이미지의 최종 JSON이 자동으로 선택됩니다. 중간에 저장된 checkpoint JSON을 가져오려면 'JSON 추가'를 사용하세요.",
+        "step_import": "4단계 - 가져오기",
+        "step_import_hint": "가져오기를 한 번만 클릭하세요. 앱이 FH6 레이어 테이블을 안전하게 찾은 뒤 디자인을 씁니다.",
+        "advanced_options": "고급 옵션",
+        "show_advanced": "고급 옵션 표시",
+        "hide_advanced": "고급 옵션 숨기기",
+        "import_preview": "선택한 JSON 미리보기",
+        "game_profile": "게임 프로필",
+        "pid": "PID",
+        "layer_count": "템플릿 레이어 수",
+        "easy_import": "간편 가져오기",
+        "easy_import_hint": "FH6에서는 주소를 비워두세요. 앱이 현재 세션을 재사용하거나 가져오기 전에 자동으로 찾습니다.",
+        "manual_count": "레이어 수 주소",
+        "manual_table": "레이어 테이블 주소",
+        "auto_locate": "FH6 자동 찾기",
+        "import_json": "JSON 가져오기",
+        "diagnose": "진단",
+        "save_snapshot": "레이어 수 스냅샷 저장",
+        "compare_snapshot": "스냅샷 비교",
+        "snapshot_count": "스냅샷 레이어 수",
+        "current_count": "현재 레이어 수",
+        "inspect_table": "테이블 검사",
+        "table_address": "후보 테이블",
+        "admin_note": "가져오기는 관리자 권한이 필요합니다. OpenProcess 실패가 보이면 이 앱을 관리자 권한으로 실행하세요.",
+        "no_game": "지원되는 게임 프로세스를 찾지 못했습니다",
+        "layer_count_required": "템플릿 레이어 수를 입력하세요. 게임에 표시된 정확한 레이어 수를 입력하십시오.",
+        "ready": "준비됨",
+        "running": "실행 중",
+        "done": "완료",
+        "failed": "실패",
+        "stopped": "중지됨",
+        "no_generation_running": "현재 실행 중인 생성 작업이 없습니다.",
+        "stopping_generation": "현재 생성을 중지하는 중...",
+        "generation_stopped": "생성이 중지되었습니다.",
+        "generator_recycled_layers": "생성기가 {max_layer}/{total} 이후 완전히 가려진 이전 레이어를 재활용했습니다. 정상 동작이며 처음부터 다시 시작한 것이 아닙니다.",
+        "existing_final_json_found": "{image}의 기존 최종 JSON을 찾아 가져오기 목록에 추가했습니다.",
+        "checkpoint_manual_hint": "생성이 실패 또는 중지되었습니다. 저장된 checkpoint JSON은 디스크에 그대로 남아 있으며 'JSON 추가'로 직접 가져올 수 있습니다.",
+        "imported_presets": "{count}개 프리셋 파일을 가져왔습니다.",
+        "saved_preset": "프리셋을 저장했습니다: {path}",
+        "no_image_selected": "선택한 이미지가 없습니다.",
+        "no_json_selected": "선택한 JSON이 없습니다.",
+        "cannot_resume_checkpoint": "기존 checkpoint는 재사용/가져오기할 수 있지만 현재 GPU 생성기는 진정한 checkpoint 이어하기를 아직 지원하지 않습니다.",
+        "duplicate_image_name": "이미지 이름 중복",
+        "duplicate_image_rejected": "이름과 확장자가 같은 이미지가 감지되었습니다: {names}. 이미지 파일의 이름을 바꾼 후 다시 추가해 주세요.",
+        "locating": "현재 FH6 템플릿을 찾는 중...",
+        "locating_wait": "최대 5분 정도 걸릴 수 있습니다. FH6를 Vinyl Group Editor에 그대로 두고 메뉴를 전환하지 말고 기다려 주세요.",
+        "located": "FH6 템플릿을 찾고 검증했습니다.",
+        "importing": "JSON을 FH6로 가져오는 중...",
+        "json_too_small": "선택한 JSON의 그릴 수 있는 레이어 수가 템플릿 사용 가능 용량보다 훨씬 적습니다. 가져오면 흐릿해 보이므로 더 높은 레이어 JSON을 선택하세요.",
+        "json_needs_more_template_layers": "FH는 커버 저장과 적용 범위를 올바르게 처리하려면 경계 레이어 4개가 필요합니다. JSON의 그릴 수 있는 레이어 수 + 4 이상인 템플릿을 사용하세요.",
+        "safe_stop": "안전한 FH6 템플릿을 찾지 못해 쓰기 전에 중지했습니다.",
+        "update_available_title": "새 버전 사용 가능",
+        "update_available_message": "새 버전이 있습니다.\n\n현재: v{current}\n최신: v{latest}",
+        "update_open_page": "업데이트 페이지 열기",
+        "update_later": "나중에",
+        "update_check_failed_title": "업데이트 확인 실패",
+        "update_check_failed_message": "업데이트를 확인하지 못했습니다. 현재 버전을 계속 사용할 수 있습니다.\n\n{error}",
+        "update_current": "현재 최신 버전입니다.",
+        "changelog": "변경 내역",
+        "runtime_folder": "런타임/캐시 폴더",
+        "open_runtime_folder": "런타임 폴더 열기",
+        "runtime_location": "런타임/캐시 파일은 앱 옆에 저장됩니다: {runtime}. FH6 probe cache: {probe}.",
+        "tutorial": """초보자용 작업 순서
+
+1. GitHub Releases에서 단일 EXE를 다운로드해 바로 실행하세요. 일반 사용자는 Python, .venv, bat 파일이 필요 없습니다.
+
+2. Forza Horizon 6를 실행하고 Create Vinyl Group / Vinyl Group Editor로 들어갑니다.
+
+3. 많은 단순 sphere 레이어로 만든 템플릿을 불러오거나 새로 만드세요. 500개 이상의 레이어를 권장합니다. 가져오기 전에는 반드시 템플릿을 ungroup해야 합니다.
+
+4. 이 앱의 JSON 생성 페이지에서 PNG/JPG/BMP 이미지를 추가하고 품질 프로필을 선택한 뒤 생성을 시작하세요.
+
+5. 가져오기 페이지를 여세요. 생성된 JSON을 추가하거나 생성된 JSON 사용을 클릭하세요. 게임 프로필은 Forza Horizon 6로 둡니다.
+
+6. 현재 게임에 불러온 템플릿의 실제 레이어 수를 입력하세요. FH6에서는 보통 메모리 주소를 직접 입력할 필요가 없습니다. JSON 가져오기를 클릭하면 필요할 때 앱이 현재 FH6 레이어 테이블을 자동으로 찾습니다.
+
+7. OpenProcess 또는 권한 오류가 보이면 앱을 닫고 EXE를 관리자 권한으로 다시 실행하세요. 게임을 다시 시작했거나 메뉴를 바꿨다면 정확한 레이어 수로 다시 가져오세요.
+
+참고
+
+- JSON 생성은 포함된 GPU/OpenCL 생성기를 사용하므로 그래픽 드라이버를 최신 상태로 유지하세요.
+- 현재 FH6 주소는 현재 게임 프로세스와 현재 편집기 상태에서만 유효합니다.
+- 앱이 안전한 템플릿을 찾지 못하면 편집기가 열려 있는지, 템플릿이 ungroup 상태인지, 레이어 수가 정확한지 확인하세요.
+
+영역 페인트
+
+영역 페인트를 사용하면 이미지의 특정 영역을 반복적으로 세부 조정할 수 있습니다. 모든 레이어를 한 번에 생성하는 대신, 먼저 전체 이미지에 기본 레이어 패스를 생성한 다음 영역(얼굴, 디테일 등)을 선택하여 해당 영역에만 추가 레이어를 적용합니다.
+
+1. 영역 페인트 탭을 엽니다. 이미지 추가를 클릭하여 PNG/JPG/BMP를 선택하세요.
+
+2. 품질 프로필을 선택하세요 — 총 예산(프로필의 stopAt 값)이 설정됩니다. 첫 패스 레이어(전체 이미지에 처음 생성할 레이어 수)와 영역 레이어(선택한 영역당 추가할 레이어 수)를 조정하세요.
+
+3. 원본 캔버스에서 사각형 또는 타원 도구를 사용하여 선택 영역을 그립니다. 빨간색 오버레이가 선택을 표시합니다. 마스크 지우기를 사용하여 선택을 제거하세요.
+
+4. 첫 패스 시작을 클릭하여 기본 레이어를 생성합니다. 완료될 때까지 기다리면 오른쪽 캔버스에 미리보기가 나타납니다.
+
+5. 왼쪽 캔버스에 선택 영역을 그린 다음 선택 영역 페인트를 클릭하여 해당 영역에만 더 많은 레이어를 추가합니다. 세부 조정할 각 영역에 대해 이 과정을 반복하세요.
+
+6. 모든 패스가 끝나면 결과 폴더 열기를 사용하여 출력 디렉토리에서 base.json을 찾거나, 결과 JSON 저장을 사용하여 원하는 위치로 내보내세요.
+
+7. 가져오기 탭을 사용하여 결과 JSON을 가져옵니다 — 표준 생성과 동일한 워크플로입니다.
+
+팁
+
+- 남은 예산은 남음 옆에 표시됩니다. 각 영역 패스는 이 예산에서 레이어를 소비합니다.
+- 동일한 영역에서 여러 번의 영역 패스를 실행하여 추가 세부 조정을 할 수 있습니다.
+""",
+        "region_paint_tab": "영역 페인트",
+        "region_step_image": "1단계 — 이미지 및 프로필 선택",
+        "region_step_budget": "2단계 — 레이어 예산 설정",
+        "region_step_selection": "3단계 — 세부 조정할 영역 선택",
+        "region_step_actions": "4단계 — 생성",
+        "region_total_layers": "총 예산",
+        "region_first_pass_layers": "첫 패스 레이어",
+        "region_region_layers": "영역 레이어",
+        "region_remaining": "남음",
+        "region_tool_rect": "사각형",
+        "region_tool_ellipse": "타원",
+        "region_tool_brush": "브러시",
+        "region_tool_polygon": "다각형",
+        "region_tool_clear": "모두 지우기",
+        "region_tool_clear_selected": "선택 지우기",
+        "region_exclude_mode": "제외 모드",
+        "region_toggle_exclude": "포함/제외 전환",
+        "region_rotation": "회전",
+        "region_rotation_degrees": "{angle}°",
+        "region_brush_size": "브러시 크기",
+        "region_start_first_pass": "첫 패스 시작",
+        "region_paint_region": "선택 영역 페인트",
+        "region_stop": "중지",
+        "region_pass_history": "패스 기록",
+        "region_original_label": "원본",
+        "region_preview_label": "미리보기",
+        "region_preview_tab": "미리보기",
+        "region_heatmap_tab": "히트맵",
+        "region_no_image": "먼저 이미지를 추가하세요.",
+        "region_no_mask": "먼저 영역을 선택하세요.",
+        "region_budget_exceeded": "남은 레이어가 부족합니다 ({remaining}개 남음, {needed}개 필요).",
+        "region_first_pass_done": "첫 패스 완료. {layers}개 레이어 사용됨. 세부 조정할 영역을 선택하세요.",
+        "region_pass_done": "영역 패스 완료. {layers}개 레이어 추가됨, {remaining}개 남음.",
+        "region_no_first_pass": "영역 페인트 전에 첫 패스를 실행하세요.",
+        "region_open_result_folder": "결과 폴더 열기",
+        "region_save_result_json": "결과 JSON 저장",
+        "region_small_screen_hint": "(작은 화면용)",
+        "region_restore_checkpoint": "체크포인트 복원",
+        "region_checkpoint_active": "현재",
+    },
+    "es": {
+        "title": app_title(),
+        "subtitle": "Genera archivos JSON de geometría e impórtalos en el editor de vinilos de Forza Horizon.",
+        "language": "Español",
+        "process": "Proceso del juego",
+        "refresh": "Actualizar",
+        "generate_tab": "Generar JSON",
+        "import_tab": "Importar",
+        "tools_tab": "Herramientas FH6",
+        "tutorial_tab": "Tutorial",
+        "market_banner": "El Mercado de presets está en línea: explora imágenes compartidas, presets y paquetes JSON en painter6.com.",
+        "open_market": "Abrir mercado",
+        "images": "Imágenes",
+        "add_images": "Agregar imágenes",
+        "remove_image": "Eliminar imagen seleccionada",
+        "quality": "Perfil de calidad",
+        "gpu_device": "Tarjeta gráfica",
+        "gpu_device_auto": "Automático (mejor GPU)",
+        "gpu_device_refresh": "Actualizar GPUs",
+        "gpu_device_hint": "Elige la GPU que ejecuta el generador. Automático deja que el generador elija.",
+        "gpu_device_none": "No se detectó ninguna GPU OpenCL. El generador elegirá el dispositivo por su cuenta. Actualiza los controladores NVIDIA/AMD/Intel si falta alguna tarjeta.",
+        "gpu_device_forced": "GPU del generador: {device}",
+        "gpu_device_auto_log": "GPU del generador: automático (el generador elige el dispositivo).",
+        "gpu_device_unsupported": "Esta app no puede forzar {device} ({vendor} no expone un selector de dispositivo). El generador elegirá por su cuenta.",
+        "gpu_device_missing": "La GPU seleccionada antes ya no está disponible. Se volvió a automático.",
+        "parallel_jobs": "Imágenes en paralelo",
+        "parallel_jobs_hint": "Solo ayuda con varias imágenes en cola; una sola imagen no cambia.",
+        "parallel_jobs_active": "Generando {jobs} imágenes a la vez ({images} en cola). El ETA por capa se desactiva mientras se solapan.",
+        "parallel_jobs_progress": "{done}/{total} imágenes listas",
+        "parallel_jobs_selected": "Generación paralela: hasta {jobs} imágenes a la vez.",
+        "parallel_jobs_off": "Generación paralela desactivada: una imagen a la vez.",
+        "parallel_jobs_incomplete": "Solo {done} de {total} imágenes produjeron resultado. La ejecución se trata como fallida; revisa el log detallado.",
+        "import_preset": "Importar preset",
+        "open_preset_folder": "Abrir carpeta de presets",
+        "custom_settings": "Usar configuración personalizada",
+        "custom_layers": "Capas de salida",
+        "custom_resolution": "Resolución máxima",
+        "custom_random": "Muestras aleatorias",
+        "custom_mutated": "Muestras mutadas",
+        "custom_save_at": "Guardar puntos de control",
+        "preprocess_mode": "Modo de preprocesamiento",
+        "save_custom_preset": "Guardar como preset",
+        "custom_panel_title": "Configuración personalizada",
+        "custom_panel_hint": "El preset seleccionado llena estos valores. Activa la configuración personalizada si quieres editarlos antes de generar.",
+        "generate_step_image": "Paso 1 - Elegir imágenes",
+        "generate_step_image_hint": "Agrega imágenes PNG/JPG/BMP. Los JSON se guardan junto a la app en out/<nombre de imagen>/<extensión>/; las imágenes originales se respaldan en image/<extensión>/.",
+        "generate_step_quality": "Paso 2 - Elegir calidad",
+        "generate_step_quality_hint": "Los perfiles rápidos tardan menos. Los perfiles lentos usan más tiempo de GPU y normalmente se ven más limpios.",
+        "generate_step_run": "Paso 3 - Generar",
+        "generate_step_run_hint": "Haz clic una vez y espera. El progreso aparecerá en Registros; el JSON generado se agregará automáticamente a la página Importar.",
+        "scroll_hint": "Agrega una imagen, elige un preset y ajusta la configuración personalizada si es necesario.",
+        "start_generate": "Generar con la configuración actual",
+        "stop_generate": "Detener generación actual",
+        "open_output": "Abrir carpeta de salida",
+        "preview": "Vista previa",
+        "preview_hint": "Selecciona una imagen o un JSON para previsualizarlo aquí.",
+        "preview_unavailable": "La vista previa no está disponible. Instala las dependencias opcionales de vista previa o continúa sin ella.",
+        "preview_accuracy_note": "Las versiones actuales conservan tamaños decimales en las elipses para mejorar la importación dentro del juego; la vista previa es aproximada.",
+        "logs": "Registros",
+        "export_logs": "Exportar registro detallado",
+        "progress": "Progreso",
+        "json_files": "Archivos JSON de geometría",
+        "add_json": "Agregar JSON",
+        "remove_json": "Eliminar JSON seleccionado",
+        "use_outputs": "Usar JSON generado",
+        "step_game": "Paso 1 - Juego",
+        "step_game_hint": "Inicia FH6, abre el Editor de Grupo de Vinilos, carga una plantilla de esferas sin agrupar y luego actualiza la lista de procesos.",
+        "step_template": "Paso 2 - Plantilla",
+        "step_template_hint": "Ingresa el número exacto de capas que muestra tu plantilla actual dentro del juego.",
+        "step_json": "Paso 3 - JSON",
+        "step_json_hint": "Usa el JSON generado por esta app o agrega manualmente un JSON de geometría. El JSON final terminado se selecciona automáticamente; para importar un JSON de punto de control intermedio, usa 'Agregar JSON'.",
+        "step_import": "Paso 4 - Importar",
+        "step_import_hint": "Haz clic en importar una sola vez. La app encontrará de forma segura la tabla de capas de FH6 y luego escribirá el diseño.",
+        "advanced_options": "Opciones avanzadas",
+        "show_advanced": "Mostrar avanzado",
+        "hide_advanced": "Ocultar avanzado",
+        "import_preview": "Vista previa del JSON seleccionado",
+        "game_profile": "Perfil del juego",
+        "pid": "PID",
+        "layer_count": "Cantidad de capas de la plantilla",
+        "easy_import": "Importación fácil",
+        "easy_import_hint": "Para FH6, deja las direcciones vacías. La app reutilizará una sesión activa o las localizará automáticamente antes de importar.",
+        "manual_count": "Dirección del contador de capas",
+        "manual_table": "Dirección de la tabla de capas",
+        "auto_locate": "Localizar FH6 automáticamente",
+        "import_json": "Importar JSON",
+        "diagnose": "Diagnosticar",
+        "save_snapshot": "Guardar captura del contador",
+        "compare_snapshot": "Comparar captura",
+        "snapshot_count": "Cantidad de capas de la captura",
+        "current_count": "Cantidad de capas actual",
+        "inspect_table": "Inspeccionar tabla",
+        "table_address": "Tabla candidata",
+        "admin_note": "La importación necesita permisos de administrador. Inicia esta app como administrador si OpenProcess falla.",
+        "no_game": "No se detectó ningún proceso de juego compatible",
+        "layer_count_required": "La cantidad de capas de la plantilla es obligatoria. Ingresa el número exacto de capas que aparece dentro del juego.",
+        "ready": "Listo",
+        "running": "En ejecución",
+        "done": "Completado",
+        "failed": "Error",
+        "stopped": "Detenido",
+        "no_generation_running": "No hay ninguna generación en ejecución.",
+        "stopping_generation": "Deteniendo la generación actual...",
+        "generation_stopped": "Generación detenida.",
+        "generator_recycled_layers": "El generador recicló capas completamente cubiertas después de {max_layer}/{total}; continuará trabajando. Esto es normal y no es un reinicio completo.",
+        "existing_final_json_found": "Se encontró el JSON final existente para {image}; se agregó a Importar.",
+        "checkpoint_manual_hint": "La generación falló o fue detenida. Cualquier JSON de punto de control guardado permanece en el disco; usa 'Agregar JSON' para importarlo manualmente.",
+        "imported_presets": "Se importaron {count} archivo(s) de preset.",
+        "saved_preset": "Preset guardado: {path}",
+        "no_image_selected": "No hay ninguna imagen seleccionada.",
+        "no_json_selected": "No hay ningún JSON seleccionado.",
+        "cannot_resume_checkpoint": "Los puntos de control existentes pueden reutilizarse/importarse, pero este generador por GPU aún no admite reanudar realmente desde un punto de control.",
+        "duplicate_image_name": "Nombre de imagen duplicado",
+        "duplicate_image_rejected": "Se detectaron imágenes con el mismo nombre y la misma extensión: {names}. Renombra los archivos y vuelve a añadirlos.",
+        "locating": "Buscando la plantilla actual de FH6...",
+        "locating_wait": "Esto puede tardar hasta 5 minutos. Mantén FH6 en el Editor de Grupo de Vinilos, no cambies de menú y espera con paciencia.",
+        "located": "Plantilla de FH6 localizada y verificada.",
+        "importing": "Importando JSON en FH6...",
+        "json_too_small": "El JSON seleccionado tiene muchas menos capas dibujables que la capacidad útil de la plantilla. La importación se verá borrosa; elige un JSON con más capas.",
+        "json_needs_more_template_layers": "FH necesita 4 capas de límite para guardar la portada y aplicar el diseño correctamente. Usa una plantilla con al menos capas dibujables del JSON + 4.",
+        "safe_stop": "Se detuvo antes de escribir porque no se encontró una plantilla segura de FH6.",
+        "update_available_title": "Actualización disponible",
+        "update_available_message": "Hay una nueva versión disponible.\n\nActual: v{current}\nMás reciente: v{latest}",
+        "update_open_page": "Abrir página de actualización",
+        "update_later": "Después",
+        "update_check_failed_title": "Error al buscar actualizaciones",
+        "update_check_failed_message": "No se pudieron buscar actualizaciones. Puedes seguir usando la app.\n\n{error}",
+        "update_current": "Ya estás usando la versión más reciente.",
+        "changelog": "Registro de cambios",
+        "runtime_folder": "Carpeta de ejecución/caché",
+        "open_runtime_folder": "Abrir carpeta de ejecución",
+        "runtime_location": "Los archivos de ejecución/caché se guardan junto a la app: {runtime}. Caché de prueba de FH6: {probe}.",
+        "tutorial": """Flujo para principiantes
+
+1. Descarga el EXE de un solo archivo desde GitHub Releases y ejecútalo directamente. Los usuarios normales no necesitan Python, .venv ni archivos batch.
+
+2. Inicia Forza Horizon 6 y entra a Create Vinyl Group / Vinyl Group Editor.
+
+3. Carga o crea una plantilla hecha con muchas capas simples de sphere. Se recomiendan 500 capas o más. Desagrupa la plantilla antes de importar.
+
+4. En esta app, abre Generar JSON, agrega una imagen PNG/JPG/BMP, elige un perfil de calidad y luego haz clic para iniciar la generación.
+
+5. Abre Importar. Agrega el JSON generado o haz clic en Usar JSON generado. Mantén el perfil del juego como Forza Horizon 6.
+
+6. Ingresa la cantidad real de capas de la plantilla cargada actualmente en el juego. En FH6 normalmente no necesitas escribir direcciones de memoria. Haz clic en Importar JSON; la app localizará automáticamente la tabla de capas activa de FH6 si es necesario.
+
+7. Si la importación falla con errores de OpenProcess o permisos, cierra la app y ejecuta el EXE como administrador. Si reiniciaste el juego, entraste a otro menú o recargaste la plantilla, importa de nuevo con la nueva cantidad correcta de capas.
+
+Notas
+
+- La generación de JSON usa el generador GPU/OpenCL incluido, así que mantén actualizado el controlador de video.
+- Las direcciones actuales de FH6 solo son válidas para el proceso actual del juego y el estado actual del editor.
+- Si la app no encuentra una plantilla segura, confirma que el editor esté abierto, que la plantilla esté desagrupada y que la cantidad de capas sea exacta.
+
+Pintura Regional
+
+La Pintura Regional permite refinar iterativamente áreas específicas de una imagen. En lugar de generar todas las capas a la vez, primero genera una pasada de capas base en toda la imagen, luego selecciona regiones (rostros, detalles, etc.) y agrega capas adicionales solo en esas áreas.
+
+1. Abra la pestaña Pintura Regional. Haga clic en Agregar Imagen para seleccionar un PNG/JPG/BMP.
+
+2. Elija un Perfil de Calidad — esto establece el Presupuesto total (valor stopAt del perfil). Ajuste las Capas de 1ª pasada (cuántas capas generar inicialmente en toda la imagen) y las Capas por región (cuántas agregar por región seleccionada).
+
+3. En el lienzo Original, use la herramienta Rectángulo o Elipse para dibujar una región de selección. La superposición roja muestra su selección. Use Limpiar Máscara para eliminar la selección.
+
+4. Haga clic en Iniciar 1ª Pasada para generar las capas base. Espere a que termine — aparecerá una vista previa en el lienzo derecho.
+
+5. Dibuje una región de selección en el lienzo izquierdo, luego haga clic en Pintar Región Seleccionada para agregar más capas solo dentro de esa región. Repita para cada área que desee refinar.
+
+6. Después de todas las pasadas, use Abrir Carpeta de Resultados para encontrar base.json en el directorio de salida, o Guardar JSON del Resultado para exportarlo a una ubicación personalizada.
+
+7. Importe el JSON resultante usando la pestaña Importar — el mismo flujo de trabajo que la generación estándar.
+
+Consejos
+
+- El presupuesto restante se muestra junto a Restante. Cada pasada regional consume capas de este presupuesto.
+- Puede ejecutar múltiples pasadas regionales en la misma área para un refinamiento adicional.
+""",
+        "region_paint_tab": "Pintura Regional",
+        "region_step_image": "Paso 1 — Elegir imagen y perfil",
+        "region_step_budget": "Paso 2 — Establecer presupuesto de capas",
+        "region_step_selection": "Paso 3 — Seleccionar región a refinar",
+        "region_step_actions": "Paso 4 — Generar",
+        "region_total_layers": "Presupuesto total",
+        "region_first_pass_layers": "Capas de 1ª pasada",
+        "region_region_layers": "Capas por región",
+        "region_remaining": "Restante",
+        "region_tool_rect": "Rectángulo",
+        "region_tool_ellipse": "Elipse",
+        "region_tool_brush": "Pincel",
+        "region_tool_polygon": "Polígono",
+        "region_tool_clear": "Limpiar todas",
+        "region_tool_clear_selected": "Limpiar seleccionada",
+        "region_exclude_mode": "Modo de exclusión",
+        "region_toggle_exclude": "Alternar inclusión/exclusión",
+        "region_rotation": "Rotación",
+        "region_rotation_degrees": "{angle}°",
+        "region_brush_size": "Tamaño del pincel",
+        "region_start_first_pass": "Iniciar 1ª Pasada",
+        "region_paint_region": "Pintar Región Seleccionada",
+        "region_stop": "Detener",
+        "region_pass_history": "Historial",
+        "region_original_label": "Original",
+        "region_preview_label": "Vista previa",
+        "region_preview_tab": "Vista previa",
+        "region_heatmap_tab": "Mapa de calor",
+        "region_no_image": "Agregue una imagen primero.",
+        "region_no_mask": "Seleccione una región primero.",
+        "region_budget_exceeded": "No hay suficientes capas restantes ({remaining} restantes, se necesitan {needed}).",
+        "region_first_pass_done": "1ª pasada completa. {layers} capas usadas. Seleccione una región para refinar.",
+        "region_pass_done": "Pasada regional completa. {layers} capas agregadas, {remaining} restantes.",
+        "region_no_first_pass": "Ejecute la primera pasada antes de pintar regiones.",
+        "region_open_result_folder": "Abrir carpeta de resultados",
+        "region_save_result_json": "Guardar JSON del resultado",
+        "region_small_screen_hint": "(para pantallas pequeñas)",
+        "region_restore_checkpoint": "Restaurar Punto de Control",
+        "region_checkpoint_active": "activo",
+    },
+}
+
+
+TYPECODE_TEXT = {
+    "en": {
+        "full_shape_tab": "Full Shape I/O",
+        "export_tab": "Export",
+        "full_shape_intro_title": "Experimental FH6 full-shape import/export",
+        "full_shape_intro": "Uses the 16-bit shape word at layer offset 0x7A. This path is for research and handmade/exported JSONs; normal generated ellipse JSON should still use the Import page.",
+        "full_shape_session_title": "Step 1 - FH6 session",
+        "full_shape_session_hint": "Open FH6 Vinyl Group Editor, keep the target group open, and refresh/select the live FH6 process. For import, use a saved/reopened plain white circle template and ungroup it first.",
+        "full_shape_import_title": "Step 2 - Import full-shape JSON",
+        "full_shape_import_hint": "Choose a type-code full-shape JSON. The importer writes position, scale, rotation, skew, color, mask, and shape word only, then trims the FH6 group count.",
+        "full_shape_choose_json": "Choose full-shape JSON",
+        "full_shape_clear_unused": "Clear unused template layers",
+        "full_shape_import_button": "Import full-shape JSON",
+        "full_shape_export_title": "Export current FH6 group",
+        "full_shape_export_hint": "Read-only export. You will choose the JSON output path after clicking Export. The exporter validates the live editable table before writing JSON.",
+        "full_shape_export_button": "Export current group",
+        "full_shape_open_folder": "Open last output folder",
+        "full_shape_notes_title": "Current model and warnings",
+        "full_shape_notes": "Confirmed model:\n- Reads/writes the 16-bit FH6 shape word at layer offset 0x7A.\n- Writes only stable visual fields: position, scale, rotation, skew, color, mask flag, and shape word.\n- Does not copy volatile resource pointers such as 0xA8.\n\nBest import workflow:\n1. Create one plain white circle template, save it, reopen it, then ungroup it.\n2. Enter the exact visible layer count matching your JSON shape count.\n3. Import once into a fresh template. Results appear immediately.\n\nThis is still experimental. If FH6 UI thumbnails look stale, enter/exit the layer editor before judging the result.",
+        "full_shape_selected_json": "Selected full-shape JSON:",
+        "full_shape_invalid_json": "Invalid full-shape JSON",
+        "full_shape_count_required": "Full-shape layer count must be a positive number.",
+        "full_shape_no_json": "No full-shape JSON selected.",
+        "full_shape_no_shapes": "Full-shape JSON has no shapes.",
+        "full_shape_single_json_required": "Import one full-shape JSON at a time. Select a single JSON in the list, then click Import JSON.",
+        "full_shape_too_many_shapes": "Full-shape JSON has too many shapes for the loaded template.",
+        "full_shape_fresh_template_required": "No safe fresh FH6 import template was found. Load a saved/reopened plain white circle template, ungroup it, keep FH6 in the Vinyl Group Editor, and import only once per fresh template. Details: {detail}",
+        "full_shape_probe_wait": "Locating the loaded FH6 full-shape group. Keep FH6 in Vinyl Group Editor and do not switch menus.",
+        "full_shape_locating": "Locating FH6 full-shape group...",
+        "full_shape_importing": "Importing full-shape JSON into FH6...",
+        "full_shape_exporting": "Exporting current FH6 group...",
+        "full_shape_trimming": "Trimming FH6 group layer count...",
+        "full_shape_run_folder": "Full-shape run folder",
+        "export_full_shape_report": "Export full-shape report",
+        "full_shape_no_report": "No full-shape report is available yet.",
+        "full_shape_report_export_failed": "Failed to export full-shape report",
+        "full_shape_report_exported": "Full-shape report exported: {path}",
+        "full_shape_non_circle_template_warning": "Current template is not a fresh white circle template ({circle}/{count} circle layers). Continuing anyway; if import fails or FH6 behaves strangely, reopen a saved clean template and retry.",
+        "full_shape_failure_prompt": "Full-shape operation failed.\n\nCheck that FH6 is still in Vinyl Group Editor, the layer count is exact, and the group is ungrouped. For import, a saved/reopened clean template is still recommended. If this keeps failing, click Export full-shape report and send the ZIP for debugging.\n\nDetail: {detail}",
+        "full_shape_import_done_title": "Full-shape import complete",
+        "full_shape_import_success_prompt": "Full-shape import wrote {count} layers. Results are visible immediately in the editor.",
+        "full_shape_import_done": "Full-shape import complete: {count} layers written.",
+        "full_shape_export_done": "Full-shape export complete: {count} layers -> {path}",
+        "full_shape_failed": "Full-shape operation failed",
+    },
+    "zh": {
+        "full_shape_tab": "全图形导入导出",
+        "export_tab": "导出",
+        "full_shape_intro_title": "实验性 FH6 全图形导入/导出",
+        "full_shape_intro": "使用图层偏移 0x7A 的 16-bit 形状 word。这个路径用于研究、手工 JSON 和游戏导出的 JSON；普通生成器椭圆 JSON 仍然走“导入”页。",
+        "full_shape_session_title": "第 1 步 - FH6 会话",
+        "full_shape_session_hint": "打开 FH6 纹饰组编辑器，保持目标组打开，然后刷新并选择当前 FH6 进程。导入时请使用已保存/重新打开的纯白圆形模板，并先取消分组。",
+        "full_shape_import_title": "第 2 步 - 导入全图形 JSON",
+        "full_shape_import_hint": "选择 type-code 全图形 JSON。导入器只写位置、缩放、旋转、斜切、颜色、蒙版和形状 word。",
+        "full_shape_choose_json": "选择全图形 JSON",
+        "full_shape_clear_unused": "清空未使用的模板层",
+        "full_shape_import_button": "导入全图形 JSON",
+        "full_shape_export_title": "导出当前 FH6 组",
+        "full_shape_export_hint": "只读导出。点击导出后选择 JSON 输出路径。导出器会先验证当前可编辑图层表，再写出 JSON。",
+        "full_shape_export_button": "导出当前组",
+        "full_shape_open_folder": "打开上次输出文件夹",
+        "full_shape_notes_title": "当前模型和警告",
+        "full_shape_notes": "已确认模型：\n- 读取/写入图层偏移 0x7A 的 16-bit FH6 形状 word。\n- 只写稳定视觉字段：位置、缩放、旋转、斜切、颜色、蒙版标记和形状 word。\n- 不复制 0xA8 之类的易失资源指针。\n\n推荐导入流程：\n1. 创建一个纯白圆形模板，保存，重新打开，然后取消分组。\n2. 输入与 JSON 形状数匹配的可见图层数。\n3. 每个新鲜模板只导入一次，结果即时可见。\n\n这个功能仍然是实验性的。如果 FH6 UI 缩略图没刷新，先进入/退出单层编辑后再判断结果。",
+        "full_shape_selected_json": "已选择全图形 JSON：",
+        "full_shape_invalid_json": "无效的全图形 JSON",
+        "full_shape_count_required": "全图形层数必须是正整数。",
+        "full_shape_no_json": "未选择全图形 JSON。",
+        "full_shape_no_shapes": "全图形 JSON 没有 shapes。",
+        "full_shape_single_json_required": "全图形 JSON 一次只能导入一个。请在列表中选中单个 JSON，然后点击导入 JSON。",
+        "full_shape_too_many_shapes": "全图形 JSON 的形状数量超过当前模板层数。",
+        "full_shape_probe_wait": "正在定位已打开的 FH6 全图形组。保持 FH6 在纹饰组编辑器，不要切换菜单。",
+        "full_shape_locating": "正在定位 FH6 全图形组...",
+        "full_shape_importing": "正在导入全图形 JSON 到 FH6...",
+        "full_shape_exporting": "正在导出当前 FH6 组...",
+        "full_shape_trimming": "正在修剪 FH6 组图层数...",
+        "full_shape_run_folder": "全图形运行目录",
+        "export_full_shape_report": "导出全图形报告",
+        "full_shape_no_report": "当前还没有可导出的全图形报告。",
+        "full_shape_report_export_failed": "导出全图形报告失败",
+        "full_shape_report_exported": "全图形报告已导出：{path}",
+        "full_shape_non_circle_template_warning": "当前模板不是新鲜纯白圆形模板（圆形层 {circle}/{count}）。本次会继续尝试；如果导入失败或 FH6 异常，请重新打开保存过的干净模板再试。",
+        "full_shape_failure_prompt": "全图形操作失败。\n\n请确认 FH6 仍停留在纹饰组编辑器、层数填写准确、当前组已取消分组。导入时仍建议使用保存后重新打开的干净模板。如果持续失败，请点击“导出全图形报告”并发送 ZIP 用于排查。\n\n详情：{detail}",
+        "full_shape_import_done_title": "全图形导入完成",
+        "full_shape_import_success_prompt": "全图形导入已写入 {count} 层。结果在编辑器中即时可见。",
+        "full_shape_import_done": "全图形导入完成：{count} 层已写入。",
+        "full_shape_export_done": "全图形导出完成：{count} 层 -> {path}",
+        "full_shape_failed": "全图形操作失败",
+    },
+    "zh-tw": {
+        "full_shape_tab": "全圖形匯入匯出",
+        "export_tab": "匯出",
+        "full_shape_intro_title": "實驗性 FH6 全圖形匯入/匯出",
+        "full_shape_intro": "使用圖層偏移 0x7A 的 16-bit 形狀 word。此路徑用於研究、手工 JSON 和遊戲匯出的 JSON；普通產生器橢圓 JSON 仍請使用「匯入」頁。",
+        "full_shape_session_title": "第 1 步 - FH6 工作階段",
+        "full_shape_session_hint": "打開 FH6 紋飾組編輯器，保持目標組開啟，然後重新整理並選擇目前 FH6 程序。匯入時請使用已儲存/重新打開的純白圓形範本，並先取消群組。",
+        "full_shape_import_title": "第 2 步 - 匯入全圖形 JSON",
+        "full_shape_import_hint": "選擇 type-code 全圖形 JSON。匯入器只寫位置、縮放、旋轉、斜切、顏色、遮罩和形狀 word。",
+        "full_shape_choose_json": "選擇全圖形 JSON",
+        "full_shape_clear_unused": "清空未使用的範本層",
+        "full_shape_import_button": "匯入全圖形 JSON",
+        "full_shape_export_title": "匯出目前 FH6 組",
+        "full_shape_export_hint": "唯讀匯出。點擊匯出後選擇 JSON 輸出路徑。匯出器會先驗證目前可編輯圖層表，再寫出 JSON。",
+        "full_shape_export_button": "匯出目前組",
+        "full_shape_open_folder": "開啟上次輸出資料夾",
+        "full_shape_notes_title": "目前模型和警告",
+        "full_shape_notes": "已確認模型：\n- 讀取/寫入圖層偏移 0x7A 的 16-bit FH6 形狀 word。\n- 只寫穩定視覺欄位：位置、縮放、旋轉、斜切、顏色、遮罩標記和形狀 word。\n- 不複製 0xA8 等易失資源指標。\n\n建議匯入流程：\n1. 建立一個純白圓形範本，儲存，重新打開，然後取消群組。\n2. 輸入與 JSON 形狀數匹配的可見圖層數。\n3. 每個新鮮範本只匯入一次，結果即時可見。\n\n此功能仍是實驗性。如果 FH6 UI 縮圖未更新，先進入/退出單層編輯後再判斷結果。",
+        "full_shape_selected_json": "已選擇全圖形 JSON：",
+        "full_shape_invalid_json": "無效的全圖形 JSON",
+        "full_shape_count_required": "全圖形層數必須是正整數。",
+        "full_shape_no_json": "未選擇全圖形 JSON。",
+        "full_shape_no_shapes": "全圖形 JSON 沒有 shapes。",
+        "full_shape_single_json_required": "全圖形 JSON 一次只能匯入一個。請在清單中選取單一 JSON，然後點擊匯入 JSON。",
+        "full_shape_too_many_shapes": "全圖形 JSON 的形狀數量超過目前範本層數。",
+        "full_shape_probe_wait": "正在定位已開啟的 FH6 全圖形組。保持 FH6 在紋飾組編輯器，不要切換選單。",
+        "full_shape_locating": "正在定位 FH6 全圖形組...",
+        "full_shape_importing": "正在匯入全圖形 JSON 到 FH6...",
+        "full_shape_exporting": "正在匯出目前 FH6 組...",
+        "full_shape_trimming": "正在修剪 FH6 組圖層數...",
+        "full_shape_run_folder": "全圖形執行目錄",
+        "export_full_shape_report": "匯出全圖形報告",
+        "full_shape_no_report": "目前還沒有可匯出的全圖形報告。",
+        "full_shape_report_export_failed": "匯出全圖形報告失敗",
+        "full_shape_report_exported": "全圖形報告已匯出：{path}",
+        "full_shape_non_circle_template_warning": "目前範本不是新鮮純白圓形範本（圓形層 {circle}/{count}）。本次會繼續嘗試；如果匯入失敗或 FH6 異常，請重新打開儲存過的乾淨範本再試。",
+        "full_shape_failure_prompt": "全圖形操作失敗。\n\n請確認 FH6 仍停留在紋飾組編輯器、層數填寫準確、目前組已取消群組。匯入時仍建議使用儲存後重新打開的乾淨範本。如果持續失敗，請點擊「匯出全圖形報告」並傳送 ZIP 以便排查。\n\n詳細：{detail}",
+        "full_shape_import_done_title": "全圖形匯入完成",
+        "full_shape_import_success_prompt": "全圖形匯入已寫入 {count} 層。結果在編輯器中即時可見。",
+        "full_shape_import_done": "全圖形匯入完成：{count} 層已寫入。",
+        "full_shape_export_done": "全圖形匯出完成：{count} 層 -> {path}",
+        "full_shape_failed": "全圖形操作失敗",
+    },
+    "ko": {
+        "full_shape_tab": "전체 도형 I/O",
+        "export_tab": "내보내기",
+        "full_shape_intro_title": "실험적 FH6 전체 도형 가져오기/내보내기",
+        "full_shape_intro": "레이어 오프셋 0x7A의 16-bit shape word를 사용합니다. 이 경로는 연구용, 수제 JSON, 게임에서 내보낸 JSON용입니다. 일반 생성기 타원 JSON은 계속 Import 페이지를 사용하세요.",
+        "full_shape_session_title": "1단계 - FH6 세션",
+        "full_shape_session_hint": "FH6 Vinyl Group Editor를 열고 대상 그룹을 유지한 뒤 현재 FH6 프로세스를 새로고침/선택하세요. 가져오기는 저장 후 다시 연 흰색 원 템플릿을 먼저 그룹 해제한 상태에서 사용하세요.",
+        "full_shape_import_title": "2단계 - 전체 도형 JSON 가져오기",
+        "full_shape_import_hint": "type-code 전체 도형 JSON을 선택하세요. 가져오기는 위치, 크기, 회전, 기울기, 색상, 마스크, shape word만 씁니다.",
+        "full_shape_choose_json": "전체 도형 JSON 선택",
+        "full_shape_clear_unused": "사용하지 않는 템플릿 레이어 지우기",
+        "full_shape_import_button": "전체 도형 JSON 가져오기",
+        "full_shape_export_title": "현재 FH6 그룹 내보내기",
+        "full_shape_export_hint": "읽기 전용 내보내기입니다. Export를 누른 뒤 JSON 출력 위치를 선택합니다. 내보내기 전에 현재 편집 가능한 레이어 테이블을 검증합니다.",
+        "full_shape_export_button": "현재 그룹 내보내기",
+        "full_shape_open_folder": "마지막 출력 폴더 열기",
+        "full_shape_notes_title": "현재 모델과 경고",
+        "full_shape_notes": "확인된 모델:\n- 레이어 오프셋 0x7A의 16-bit FH6 shape word를 읽고 씁니다.\n- 안정적인 시각 필드만 씁니다: 위치, 크기, 회전, 기울기, 색상, 마스크 플래그, shape word.\n- 0xA8 같은 휘발성 리소스 포인터는 복사하지 않습니다.\n\n권장 가져오기 흐름:\n1. 흰색 원 템플릿을 만들고 저장한 뒤 다시 열고 그룹 해제합니다.\n2. JSON 도형 수와 일치하는 정확한 레이어 수를 입력합니다.\n3. 새 템플릿에는 한 번만 가져오면 결과가 즉시 표시됩니다.\n\n아직 실험적 기능입니다. FH6 UI 썸네일이 오래된 것처럼 보이면 단일 레이어 편집에 들어갔다 나온 뒤 판단하세요.",
+        "full_shape_selected_json": "선택한 전체 도형 JSON:",
+        "full_shape_invalid_json": "잘못된 전체 도형 JSON",
+        "full_shape_count_required": "전체 도형 레이어 수는 양수여야 합니다.",
+        "full_shape_no_json": "전체 도형 JSON이 선택되지 않았습니다.",
+        "full_shape_no_shapes": "전체 도형 JSON에 shapes가 없습니다.",
+        "full_shape_single_json_required": "전체 도형 JSON은 한 번에 하나만 가져올 수 있습니다. 목록에서 JSON 하나를 선택한 뒤 Import JSON을 누르세요.",
+        "full_shape_too_many_shapes": "전체 도형 JSON의 도형 수가 열린 템플릿보다 많습니다.",
+        "full_shape_probe_wait": "열린 FH6 전체 도형 그룹을 찾는 중입니다. FH6를 Vinyl Group Editor에 두고 메뉴를 바꾸지 마세요.",
+        "full_shape_locating": "FH6 전체 도형 그룹 찾는 중...",
+        "full_shape_importing": "전체 도형 JSON을 FH6로 가져오는 중...",
+        "full_shape_exporting": "현재 FH6 그룹 내보내는 중...",
+        "full_shape_trimming": "FH6 그룹 레이어 수 줄이는 중...",
+        "full_shape_run_folder": "전체 도형 실행 폴더",
+        "export_full_shape_report": "전체 도형 보고서 내보내기",
+        "full_shape_no_report": "아직 내보낼 전체 도형 보고서가 없습니다.",
+        "full_shape_report_export_failed": "전체 도형 보고서 내보내기 실패",
+        "full_shape_report_exported": "전체 도형 보고서 내보냄: {path}",
+        "full_shape_non_circle_template_warning": "현재 템플릿은 새 흰색 원 템플릿이 아닙니다(원 레이어 {circle}/{count}). 계속 시도합니다. 가져오기에 실패하거나 FH6가 이상하면 저장 후 다시 연 깨끗한 템플릿으로 다시 시도하세요.",
+        "full_shape_failure_prompt": "전체 도형 작업이 실패했습니다.\n\nFH6가 Vinyl Group Editor에 있는지, 레이어 수가 정확한지, 현재 그룹이 그룹 해제되어 있는지 확인하세요. 가져오기는 저장 후 다시 연 깨끗한 템플릿을 권장합니다. 계속 실패하면 전체 도형 보고서를 내보내 ZIP을 보내 주세요.\n\n상세: {detail}",
+        "full_shape_import_done_title": "전체 도형 가져오기 완료",
+        "full_shape_import_success_prompt": "전체 도형 가져오기가 {count} 레이어를 썼습니다. 결과는 편집기에서 즉시 확인할 수 있습니다.",
+        "full_shape_import_done": "전체 도형 가져오기 완료: {count} 레이어를 썼습니다.",
+        "full_shape_export_done": "전체 도형 내보내기 완료: {count} 레이어 -> {path}",
+        "full_shape_failed": "전체 도형 작업 실패",
+    },
+}
+
+for _lang, _items in TYPECODE_TEXT.items():
+    TEXT.setdefault(_lang, {}).update(_items)
+
+from text.i18n_en import TEXT_VINYL_EN
+from text.i18n_locales import TEXT_VINYL_BY_LANG
+
+TEXT["en"].update(TEXT_VINYL_EN)
+for _lang, _items in TEXT_VINYL_BY_LANG.items():
+    TEXT.setdefault(_lang, {}).update(_items)
+
+
+def ui_font_name(lang: str) -> str:
+    """Return a UI font family with reliable glyphs for the active locale."""
+    if lang == "ja":
+        return "Yu Gothic UI"
+    if lang in ("zh", "zh-tw"):
+        return "Microsoft YaHei UI"
+    if lang == "ko":
+        return "Malgun Gothic"
+    return "Segoe UI"
+
+
+def tr(lang: str, key: str) -> str:
+    """Return the translation for *key* in *lang*, falling back to English."""
+    translations = TEXT.get(lang, TEXT["en"])
+    return translations.get(key, TEXT["en"].get(key, key))
