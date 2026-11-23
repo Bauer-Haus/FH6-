@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 from pixel_art_geometry import FH6_BOUNDARY_LAYERS
 from security_policy import MAX_GEOMETRY_SHAPES

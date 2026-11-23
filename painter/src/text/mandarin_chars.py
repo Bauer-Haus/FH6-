@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import functools
 import re
-from typing import Iterable, List, Set, Tuple
+from typing import List, Set, Tuple
 
 # Punctuation and symbols often used beside hanzi in vinyl text.
 MANDARIN_EXTRA_CHARS = "，。！？、；：""''（）【】《》…—·0123456789"

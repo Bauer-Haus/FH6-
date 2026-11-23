@@ -17,10 +17,11 @@ import urllib.error
 import urllib.request
 import webbrowser
 import zipfile
+from typing import TYPE_CHECKING
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from tkinter import BOTH, BOTTOM, END, HORIZONTAL, LEFT, RIGHT, TclError, X, BooleanVar, Button, Canvas, Checkbutton, Entry, Frame, IntVar, Label, Listbox, PhotoImage, Spinbox, StringVar, Text, Tk, Toplevel, filedialog, messagebox, ttk
+from tkinter import BOTH, BOTTOM, END, LEFT, RIGHT, TclError, X, BooleanVar, Button, Canvas, Checkbutton, Entry, Frame, IntVar, Label, Listbox, PhotoImage, StringVar, Text, Tk, Toplevel, filedialog, messagebox, ttk
 
 import psutil
 
@@ -46,6 +47,9 @@ from region_painter.workflow import (
 )
 from ui_preferences import SUPPORTED_UI_LANGUAGES, load_ui_preferences, save_ui_preferences
 from version import APP_DISPLAY_NAME, __version__, app_title
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 
 from app_config import (
@@ -1535,20 +1539,6 @@ class App:
         pack_kwargs.setdefault("expand", True)
         paned.pack(**pack_kwargs)
         return paned
-
-    def _preview_bounds(self, label=None):
-        label = label or getattr(self, "preview_label", None)
-        if label is None:
-            return PREVIEW_MAX, PREVIEW_MAX
-        try:
-            self.root.update_idletasks()
-            width = label.winfo_width()
-            height = label.winfo_height()
-        except Exception:
-            width = height = 0
-        if width <= 32 or height <= 32:
-            return PREVIEW_MAX, PREVIEW_MAX
-        return max(1, width - 16), max(1, height - 16)
 
     def _geometry_preview_slot_for_label(self, label) -> str:
         return f"label:{id(label)}"
@@ -5414,7 +5404,6 @@ class App:
         self.queue.put(("full_shape_report_dir", run_dir))
         backup_path = run_dir / "import-backup.json"
         import_report = run_dir / "import-report.json"
-        trim_backup = run_dir / "trim-backup.json"
         try:
             self.queue.put(("log", f"{tr(self.lang, 'full_shape_importing')} shapes={shape_count}, template={template_count}"))
             group, table, _probe_report = self._locate_full_shape_group(pid, template_count, run_dir, "import-template")
@@ -5460,29 +5449,8 @@ class App:
                 self.queue.put(("full_shape_failed_prompt", failure))
                 self.queue.put(("status", tr(self.lang, "failed")))
                 return
-            # === TRIM DISABLED: importing now shows results immediately without save/reload ===
-            # trim_cmd = [
-            #     *helper_command("fh6_typecode_trim"),
-            #     "--pid",
-            #     str(pid),
-            #     "--group",
-            #     str(group),
-            #     "--table",
-            #     str(table),
-            #     "--new-count",
-            #     str(imported),
-            #     "--trim-vector-end",
-            #     "--backup",
-            #     trim_backup,
-            #     "--write",
-            # ]
-            # code = self.run_subprocess(trim_cmd, timeout=90)
-            # if code != 0:
-            #     failure = "Full-shape import wrote layers but failed while trimming layer count."
-            #     self.queue.put(("log", failure))
-            #     self.queue.put(("full_shape_failed_prompt", failure))
-            #     self.queue.put(("status", tr(self.lang, "failed")))
-            #     return
+            # No layer-count trim step (fh6_typecode_trim) here on purpose: imported layers
+            # now show up immediately, without a save and reload.
             self.queue.put(("log", tr(self.lang, "full_shape_import_done").format(count=imported)))
             if is_text_vinyl_typecode_json(json_path):
                 self.queue.put(("log", tr(self.lang, "text_import_reload_reminder")))

@@ -66,7 +66,7 @@ class StrokeRect:
 
 def _prepare_mask(mask):
     """Hard-threshold and lightly close gaps from anti-aliased glyph renders."""
-    from PIL import Image, ImageFilter
+    from PIL import ImageFilter
 
     binary = mask.point(lambda value: 255 if value >= 128 else 0)
     # Close 1px gaps without visibly bloating strokes.

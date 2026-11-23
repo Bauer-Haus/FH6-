@@ -7,10 +7,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from utils import load_cv2
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 _EXE_PREVIEW_GLOB = "_exe_preview.*.png"
 

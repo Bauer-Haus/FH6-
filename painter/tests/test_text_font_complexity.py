@@ -12,7 +12,6 @@ from text.benchmark_probes import (
     CHINESE_GROUND_UP_TEXT,
     JAPANESE_BENCHMARK_EXAMPLES,
     JAPANESE_GROUND_UP_TEXT,
-    KOREAN_BENCHMARK_TEXT,
     KOREAN_GROUND_UP_TEXT,
     LATIN_BENCHMARK_EXAMPLES,
     benchmark_texts_for_script,

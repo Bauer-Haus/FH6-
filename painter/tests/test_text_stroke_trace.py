@@ -24,15 +24,31 @@ from text.stroke_trace import (
 )
 
 
-def _font_or_skip(find, text):
-    """These tests need a real installed font; skip cleanly where none exists
-    (e.g. CI or Linux machines without the Windows font set)."""
-    import pytest
+# Regular-weight sans fonts the coverage thresholds below were checked against,
+# per platform. A fixed font keeps the tests about the tracer, not about which
+# font find_font_for_text happens to pick on a machine (on macOS that is the
+# thin "STHeiti Light", which traces with too many uncovered pixels).
+_TEST_FONTS = (
+    Path(r"C:\Windows\Fonts\arial.ttf"),
+    Path(r"C:\Windows\Fonts\msyh.ttc"),
+    Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
+    Path("/Library/Fonts/Arial.ttf"),
+    Path("/System/Library/Fonts/Helvetica.ttc"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+    Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+)
 
-    try:
-        return find(text)
-    except FileNotFoundError as exc:
-        pytest.skip(str(exc))
+
+def _font_or_skip(find, text):
+    """A known regular-weight font that has every glyph in *text*; skip cleanly
+    where none is installed. *find* is unused and kept for the call sites."""
+    import pytest
+    from text.fonts import missing_glyphs
+
+    for path in _TEST_FONTS:
+        if path.exists() and not missing_glyphs(text, path):
+            return path
+    pytest.skip(f"no known test font with glyphs for {text!r}")
 
 
 def test_normalize_strokes_mode() -> None:
@@ -150,7 +166,6 @@ def test_overlap_mode_fewer_layers_than_grid_for_latin() -> None:
     try:
         from text.fonts import find_font_for_text
         from text.geometry import (
-            TRACE_METHOD_BARS_FULL,
             TRACE_METHOD_BARS_SKELETON,
             decompose_mask_to_rectangles,
             render_text_mask,
@@ -208,8 +223,6 @@ def test_overlap_mode_skips_grid_fallback_slivers() -> None:
     if font is None:
         return
     mask = render_text_mask("ÆVEXMLIi7", font_path=font, font_size=120)
-    prepared = _prepare_mask(mask)
-    pixels = _mask_pixels(prepared)
     rects = fit_stroke_rectangles_from_mask(mask, prefer_overlap=True)
     tiny = [r for r in rects if r.length <= 2.0 and r.width <= 2.0]
     assert len(tiny) <= max(2, len(rects) // 8)

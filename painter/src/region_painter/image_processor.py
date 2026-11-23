@@ -1,6 +1,6 @@
-﻿"""Image processing utilities for region-focused painting.
+"""Image processing utilities for region-focused painting.
 
-Handles: blank mask creation, canvas-shape 鈫?PIL mask conversion, and
+Handles: blank mask creation, canvas-shape → PIL mask conversion, and
 alpha-channel masking (apply selection mask to target images).
 """
 
@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 
 def create_blank_mask(width: int, height: int) -> Image.Image:
-    """Return a blank (all zeros) ``'L'`` mode mask at *width* 脳 *height*."""
+    """Return a blank (all zeros) ``'L'`` mode mask at *width* × *height*."""
     return Image.new("L", (width, height), 0)
 
 
@@ -180,24 +180,9 @@ def apply_selection_mask(
     if feather_radius > 0:
         mask = mask.filter(ImageFilter.GaussianBlur(radius=feather_radius))
 
-    # Multiply mask into alpha channel.
+    # Multiply mask into alpha channel: new_alpha = alpha * mask / 255.
     r, g, b, a = target.split()
-    # mask is 'L' (0-255); use it as a multiplier.
-    mask_data = mask.point(lambda v: v)  # copy
-    new_alpha = Image.composite(
-        Image.new("L", target.size, 0),
-        a,
-        mask_data,
-    )
-    # Actually: new_alpha = a * (mask / 255)
-    # We can do this via point operations.
-    a_pixels = a.load()
-    m_pixels = mask_data.load()
-    for y in range(target.height):
-        for x in range(target.width):
-            a_val = a_pixels[x, y]
-            m_val = m_pixels[x, y]
-            a_pixels[x, y] = int(a_val * (m_val / 255.0))
+    a = ImageChops.multiply(a, mask.convert("L"))
 
     result = Image.merge("RGBA", (r, g, b, a))
     output_path.parent.mkdir(parents=True, exist_ok=True)

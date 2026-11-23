@@ -6,7 +6,7 @@ Used when Text vinyl "extra shapes" is enabled for smoother CJK/Latin curves.
 
 from __future__ import annotations
 
-from typing import List, Sequence, Tuple
+from typing import List, Tuple
 
 from fh6_shape_catalog import get_primitive_type_code, get_square_type_code
 from pixel_art_geometry import POSITION_SCALE, SIZE_SCALE

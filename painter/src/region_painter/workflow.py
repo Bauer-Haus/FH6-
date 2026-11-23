@@ -17,9 +17,7 @@ from region_painter.ini_manager import modify_ini
 from region_painter.preview_renderer import (
     load_shapes_from_json,
     prune_shapes_for_region,
-    render_preview,
     render_preview_high_quality,
-    render_shapes_to_array,
 )
 from region_painter.state_manager import StateManager
 

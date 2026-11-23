@@ -22,7 +22,7 @@ from text.geometry import (
     build_typecode_payload_from_mask,
     decompose_mask_to_rectangles,
 )
-from text.mask_polish import build_polish_mask_rectangles, rasterize_trace_rectangles
+from text.mask_polish import build_polish_mask_rectangles
 
 
 def test_boundary_masks_are_flagged_and_count_four() -> None:

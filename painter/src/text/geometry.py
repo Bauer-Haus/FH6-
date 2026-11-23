@@ -1295,7 +1295,7 @@ def estimate_typed_text_layers(
     vertical = layout_opts.is_vertical
 
     if fit_layer_budget and options.max_drawable_layers is not None and trace_method_uses_grid(resolved_method):
-        resolved_cell, total = resolve_cell_size_for_layer_budget(
+        resolved_cell, _ = resolve_cell_size_for_layer_budget(
             text,
             font_path=font_path,
             font_size=font_size,
@@ -1304,17 +1304,6 @@ def estimate_typed_text_layers(
             extra_shapes=extra_shapes,
             mask_options=options,
             layout=layout_opts,
-        )
-    else:
-        total = count_trace_layers_from_mask(
-            mask,
-            cell_size=resolved_cell,
-            shape_mode=shape_mode,
-            extra_shapes=extra_shapes,
-            trace_method=trace_method,
-            allow_overlapping_shapes=allow_overlapping_shapes,
-            mask_options=options,
-            vertical=vertical,
         )
 
     drawable, trace_rectangles = count_drawable_trace_layers_from_mask(

@@ -3,3 +3,4 @@ __pycache__/
 .pytest_cache/
 painter/generator/forza-painter-geometrize-go
 painter/generator/*.exe
+painter/bin/forza-painter-geometrize-go-fixed.exe

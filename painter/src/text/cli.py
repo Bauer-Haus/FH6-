@@ -1,9 +1,9 @@
 """
 CLI: generate Forza geometry JSON from typed CJK text or a text image.
 
-Examples:
-  python text_to_json.py --text "ソニック" --output sonic.json
-  python text_to_json.py --image katakana.png --output traced.json --cell-size 3
+Examples (run from painter/src):
+  python -m text.cli --text "ソニック" --output sonic.json
+  python -m text.cli --image katakana.png --output traced.json --cell-size 3
 """
 
 from __future__ import annotations

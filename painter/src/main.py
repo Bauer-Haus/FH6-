@@ -7,16 +7,21 @@
 
 import sys
 import argparse
-import importlib
-import ctypes, sys
 import psutil
 import ctypes
 import struct
 import subprocess
-#from geometrize.geometrize import geometrize_image
-#from geometrize.internal_classes import ThreadManager
-from native import *
-from internal_classes import *
+from native import (
+    dereference_pointer,
+    get_base_address,
+    is_64bit,
+    read_int,
+    read_long,
+    read_process_memory,
+    scan_block,
+    write_process_memory,
+)
+from internal_classes import Color, Shape
 from game_profiles import iter_profiles, PROFILES
 from geometry_json import RECTANGLE, ROTATED_ELLIPSE, load_normalized_geometry
 import colorsys

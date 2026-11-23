@@ -28,7 +28,6 @@ from tkinter import (
     ttk,
 )
 
-from app_paths import ROOT
 from ui_preferences import load_ui_preferences, save_ui_preferences
 from asset_workspace import TEXT_VINYL_WORKSPACE_ROOT, text_vinyl_workspace, write_manifest, workspace_source_file
 from text.mandarin_chars import text_contains_hangul
@@ -62,7 +61,6 @@ from text.geometry import (
     build_typecode_from_text_image,
     build_typecode_from_text_with_options,
     coerce_text_shape_mode_for_ui,
-    estimate_layer_count,
     estimate_typed_text_layers,
     normalize_text_shape_mode,
     normalize_text_trace_method,
@@ -825,7 +823,6 @@ class TextVinylWorkspace:
     def _start_layer_estimate(self) -> None:
         self._layer_estimate_job = None
         script = self.active_script()
-        panel = self._panel(script)
         text = self._get_panel_text(script).strip()
         if not text:
             self._layer_estimate_signature = None
@@ -1729,7 +1726,6 @@ class TextVinylWorkspace:
 
     def start_generate_typed(self) -> None:
         script = self.active_script()
-        panel = self._panel(script)
         text = self._get_panel_text(script).strip()
         if not text:
             self.app.log_line(self._tr("text_log_enter_text"))

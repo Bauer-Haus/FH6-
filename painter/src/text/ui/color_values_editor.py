@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from tkinter import LEFT, X, Button, Entry, Frame, Label, StringVar, ttk
+from tkinter import LEFT, X, Entry, Frame, Label, StringVar, ttk
 
 from forza_colors import describe_color, hex_to_rgb
 
