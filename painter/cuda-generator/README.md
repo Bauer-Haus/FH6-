@@ -41,6 +41,10 @@ The EXE is built with CUDA 12.9, so it needs a recent NVIDIA driver (575 or newe
 
 ## Trying it (Windows, NVIDIA GPU)
 
+**Easiest:** download `forza-painter-fh6-cuda.zip` from the [CUDA generator preview](https://github.com/Bauer-Haus/FH6-/releases/tag/cuda-preview) release. It is the whole app as one EXE with this generator inside, plus the self-test and benchmark tools, and a `START HERE.txt`. Nothing else to install besides the NVIDIA driver. Every push to the `cuda-generator` branch rebuilds it.
+
+The steps below are for using the generator with the app run from source.
+
 1. **Download.** Open the latest **cuda-generator** run under the repository's **Actions** tab and download the `forza-painter-geometrize-cuda` artifact. It contains the EXE, `bench.ps1` and this file. You need only an up-to-date NVIDIA driver; the CUDA runtime is built into the EXE.
 2. **Self-test.** In a terminal, run:
 

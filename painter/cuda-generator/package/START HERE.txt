@@ -1,0 +1,66 @@
+forza-painter FH6 - CUDA generator preview
+==========================================
+
+This is the whole app in one file. You don't need Python, Git or anything else
+from this repository. You need only:
+
+  * Windows 10 or 11, 64-bit
+  * An NVIDIA RTX 20, 30, 40 or 50 series card
+  * NVIDIA driver 575 or newer. In PowerShell, run  nvidia-smi  and look at
+    "Driver Version" on the top line. If it's older, update with the NVIDIA app.
+
+STATUS: the CUDA generator has not been checked on a real GPU yet. Run the
+self-test (step 2) before trusting the results.
+
+
+1. Unzip
+--------
+Unzip this whole folder somewhere permanent, for example C:\FH6. Then
+right-click each .exe > Properties > tick "Unblock" > OK, if that box is there.
+
+
+2. Self-test the GPU (about 1 minute)
+-------------------------------------
+Open PowerShell in the "tools" folder (Shift + right-click inside it >
+"Open PowerShell window here") and run:
+
+    .\forza-painter-geometrize-cuda.exe --selftest
+
+It should end with  SELFTEST PASSED . If it shows [FAIL] or an error, stop and
+send the output.
+
+
+3. Run the app
+--------------
+Right-click  forza-painter-fh6-cuda.exe  > "Run as administrator".
+(Administrator is needed only for importing into FH6.)
+
+The app's generator is the CUDA one. Use Generate JSON as usual: add an image,
+pick a preset (start with "a. keemstar fast - extremely fast" to check it works), and press
+Start generating. Output goes to an "out" folder next to the EXE.
+
+
+4. Import into FH6
+------------------
+  1. In FH6, open Create Vinyl Group / Vinyl Group Editor. Load a template of
+     sphere layers with at least (layer count + 4) layers, then Ungroup it.
+  2. In the app's Import page: Refresh, select forzahorizon6.exe, and type the
+     template's exact layer count.
+  3. Use generated JSON, then Import JSON. Don't change menus in the game until
+     it finishes. Save and reload the vinyl group.
+
+
+Optional: compare with the original Go generator
+------------------------------------------------
+In the tools folder:
+
+    powershell -ExecutionPolicy Bypass -File .\bench.ps1 -Images C:\pics\logo.png -StopAt 300
+
+It runs both generators with the same settings and seed, and prints time and
+RMSE (lower is closer to the image) for each.
+
+
+Going back to the original generator
+------------------------------------
+Use the official forza-painter-fh6 v1.9.7 release, or the app from the
+repository's main branch. Nothing here changes those.
