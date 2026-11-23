@@ -65,6 +65,12 @@ def load_image(src: str) -> Image.Image:
 
 # --------------------------------------------------------------------------- shapes
 
+# Outline points of a unit circle / square, computed once (polygon() scales them).
+_T = np.linspace(0, 2 * math.pi, 48, endpoint=False)
+_UNIT_CIRCLE = (np.cos(_T), np.sin(_T))
+_UNIT_SQUARE = (np.array([-1.0, 1.0, 1.0, -1.0]), np.array([-1.0, -1.0, 1.0, 1.0]))
+
+
 class Shape:
     """kind: 'circle' (ellipse) or 'square' (rectangle). All units in work pixels."""
 
@@ -93,13 +99,11 @@ class Shape:
         a = math.radians(self.rot)
         ca, sa = math.cos(a), math.sin(a)
         hw, hh = self.w / 2, self.h / 2
-        if self.kind == "circle":
-            local = [(hw * math.cos(t), hh * math.sin(t))
-                     for t in np.linspace(0, 2 * math.pi, 48, endpoint=False)]
-        else:
-            local = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
-        return [((self.cx + x * ca - y * sa) * scale, (self.cy + x * sa + y * ca) * scale)
-                for x, y in local]
+        ux, uy = _UNIT_CIRCLE if self.kind == "circle" else _UNIT_SQUARE
+        x, y = ux * hw, uy * hh
+        px = (self.cx + x * ca - y * sa) * scale
+        py = (self.cy + x * sa + y * ca) * scale
+        return list(zip(px.tolist(), py.tolist()))
 
     def mutate(self, W, H):
         s = self.copy()
@@ -116,15 +120,24 @@ class Shape:
         return s
 
 
-def random_shape(W, H, kinds, max_frac=0.4, err_map=None):
-    """New random shape. With err_map, the centre is picked where the picture is
-    still most wrong, so later layers go to the details."""
+def error_cdf(err_map):
+    """Running total of the error map, for picking pixels in proportion to their
+    error. Build it once per layer (the map only changes when a layer is added)
+    and pass it to random_shape for every candidate."""
+    return np.cumsum(err_map.ravel())
+
+
+def random_shape(W, H, kinds, max_frac=0.4, cdf=None):
+    """New random shape. With cdf (from error_cdf), the centre is picked where the
+    picture is still most wrong, so later layers go to the details."""
     m = max(W, H)
-    if err_map is not None:
-        flat = err_map.ravel()
-        tot = flat.sum()
-        idx = np.random.choice(flat.size, p=flat / tot) if tot > 0 else random.randrange(flat.size)
-        cy, cx = divmod(int(idx), W)
+    if cdf is not None:
+        tot = cdf[-1]
+        if tot > 0:
+            idx = min(int(np.searchsorted(cdf, random.random() * tot, side="right")), cdf.size - 1)
+        else:
+            idx = random.randrange(cdf.size)
+        cy, cx = divmod(idx, W)
         cx, cy = cx + random.random(), cy + random.random()
     else:
         cx, cy = random.uniform(0, W), random.uniform(0, H)
@@ -156,10 +169,11 @@ def fit(target, n_shapes, kinds, candidates=150, climbs=120, log=print):
     layers = []
     for i in range(n_shapes):
         best = None
+        # shapes start large and shrink as the picture fills in
+        frac = 0.4 * (1 - i / n_shapes) ** 2 + 0.02
+        cdf = error_cdf(err_map) if i else None
         for _ in range(candidates):
-            # shapes start large and shrink as the picture fills in
-            frac = 0.4 * (1 - i / n_shapes) ** 2 + 0.02
-            s = random_shape(W, H, kinds, frac, err_map if i else None)
+            s = random_shape(W, H, kinds, frac, cdf)
             d, c, m = evaluate(s, target, current, err_map)
             if c is not None and (best is None or d < best[0]):
                 best = (d, s, c, m)

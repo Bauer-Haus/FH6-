@@ -38,7 +38,7 @@ Options:
 - `--kinds circle` or `--kinds square`: use only one shape type.
 - `--quality N`: try more candidate shapes per layer (slower, slightly better).
 - `--out folder`: choose the output folder.
-- `--seed N`: get the same result every time.
+- `--seed N`: get the same result every time. (Seeds from versions before the November 2026 speed-up give a different, similar-quality result.)
 
 Simple, high-contrast images like logos, emblems and cartoon art work far better than busy photos.
 Cropping and removing the background before you run the tool helps a lot.
