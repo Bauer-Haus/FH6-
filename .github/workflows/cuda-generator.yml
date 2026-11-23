@@ -1,0 +1,64 @@
+name: cuda-generator
+
+on:
+  push:
+    paths:
+      - "painter/cuda-generator/**"
+      - ".github/workflows/cuda-generator.yml"
+  pull_request:
+    paths:
+      - "painter/cuda-generator/**"
+      - ".github/workflows/cuda-generator.yml"
+  workflow_dispatch:
+
+jobs:
+  # The CPU tests: shared maths against the Go generator's values, row runs
+  # against pixel-by-pixel scoring, and a whole run on the CPU backend.
+  cpu-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S painter/cuda-generator -B build -DFPG_CPU_ONLY=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j 4
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # The Windows EXE. These servers have no GPU, so the GPU code is checked on
+  # a real card with `forza-painter-geometrize-cuda.exe --selftest`.
+  windows-cuda:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CUDA Toolkit 12.9.1
+        uses: Jimver/cuda-toolkit@v0.2.36
+        with:
+          cuda: "12.9.1"
+          method: network
+          sub-packages: '["nvcc", "cudart", "thrust", "visual_studio_integration"]'
+      - uses: ilammy/msvc-dev-cmd@v1.13.0
+      - name: Configure
+        shell: pwsh
+        run: cmake -S painter/cuda-generator -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_COMPILER="$env:CUDA_PATH\bin\nvcc.exe"
+      - name: Build
+        run: cmake --build build
+      - name: CPU tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Check the EXE starts without a GPU
+        shell: pwsh
+        run: |
+          .\build\forza-painter-geometrize-cuda.exe --selftest
+          if ($LASTEXITCODE -ne 1) { throw "expected the selftest to report no GPU (exit 1), got $LASTEXITCODE" }
+      - name: Collect files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item build\forza-painter-geometrize-cuda.exe out\
+          Copy-Item painter\cuda-generator\bench.ps1 out\
+          Copy-Item painter\cuda-generator\README.md out\
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forza-painter-geometrize-cuda
+          path: out/
+          if-no-files-found: error
