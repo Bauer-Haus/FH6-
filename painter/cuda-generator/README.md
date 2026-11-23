@@ -4,7 +4,7 @@ A replacement for `painter/bin/forza-painter-geometrize-go.exe` that runs the la
 
 It is a drop-in replacement. It takes the same command line and reads the same settings files. It writes the same JSON checkpoints, previews and log lines, so the painter app works with it unchanged.
 
-**Status: not yet verified on a GPU.** This branch builds on GitHub, and its CPU tests pass. The GPU code has only been checked by the self-test, which has to run on a real card. Until the checks under *Trying it* pass, it stays off `main`.
+**Status: not yet verified on a GPU.** It builds on GitHub, and its CPU tests pass, but the GPU code has never run on a real card. Run the self-test under *Trying it* before relying on it. The app in `painter/bin` still ships the Go generator. The CUDA generator is used only by the preview download, or when you copy it in yourself.
 
 ## Why it is faster
 
