@@ -33,17 +33,16 @@ reports nothing on `fh6_sticker.py`, `painter/src` or `painter/tests`, and every
 **Still open:** re-run `go test ./...` in `painter/generator` on a machine with the OpenCL and Vulkan headers. This Mac
 can only build and test `imageutil` and `render`, which pass.
 
-## Files that need deleting
+## Deletes — all done
 
-| File | Confidence | Why |
-|------|------------|-----|
-| `painter/assets/imgs/ayylmao.png` | High | Nothing in the repo references `painter/assets/`, and the file is byte-for-byte identical to `painter/generator/demo/ayylmao.png`, which the generator docs do reference. Deleting it also empties `painter/assets/`. |
-| `painter/generator/demo/Purple.png`, `painter/generator/demo/Purple.preview.2500.png` | Optional | The upstream demo pair for "Purple". Nothing references them, unlike the other two demo images, which are named in the generator's benchmark tables. About 0.6 MB. Keep them if you want the upstream demo set complete. |
+| File | Why |
+|------|-----|
+| `painter/assets/imgs/ayylmao.png` | Nothing in the repo referenced `painter/assets/`, and the file was byte-for-byte identical to `painter/generator/demo/ayylmao.png`, which the generator docs do reference. `painter/assets/` is now gone. |
+| `painter/generator/demo/Purple.png`, `painter/generator/demo/Purple.preview.2500.png` | The upstream demo pair for "Purple". Nothing referenced them, unlike the other two demo images, which are named in the generator's benchmark tables. |
 
-That is the whole delete list. Everything else on `main` is either used by the app, the sticker maker, a build or
-release script, a test, or the docs. Deleting files from `main` won't make the repository smaller, because they stay
-in the Git history.
+Everything else on `main` is used by the app, the sticker maker, a build or release script, a test, or the docs.
+The deleted files are still in the Git history (so the repository is no smaller), and can be restored from it.
 
-## Next step
+## Still open
 
-Only the deletes above are left (plus the Go test re-run).
+Re-run `go test ./...` in `painter/generator` on a machine with the OpenCL and Vulkan headers.
