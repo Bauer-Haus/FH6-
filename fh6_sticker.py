@@ -25,12 +25,19 @@ Usage:
 """
 
 import argparse
+import ctypes
+import hashlib
 import html
 import io
 import json
 import math
 import os
+import platform
+import shlex
+import shutil
+import subprocess
 import sys
+import tempfile
 import urllib.request
 
 import numpy as np
@@ -252,27 +259,145 @@ def to_shape(p):
 CLIMB_BATCH = 4  # mutations tried at once per hill-climb step
 
 
-def fit(target, n_shapes, kinds, candidates=150, climbs=120, log=print):
+# --------------------------------------------------------------------------- compiled core
+#
+# fh6_fastcore.c does the same scoring and hill-climbing in C. It is compiled on
+# first use with the system C compiler (cc / gcc / clang, or $CC) and cached in
+# __pycache__ (or the temp folder). Without a compiler the numpy code is used.
+
+_C_SOURCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fh6_fastcore.c")
+_fastcore = None  # loaded library, or False once building it has failed
+
+
+def load_fastcore():
+    """The compiled core as a ctypes library, or None when it can't be built."""
+    global _fastcore
+    if _fastcore is None:
+        _fastcore = _build_fastcore() or False
+    return _fastcore or None
+
+
+def _open_fastcore(path):
+    try:
+        lib = ctypes.CDLL(path)
+        dp = np.ctypeslib.ndpointer(np.float64, flags="C_CONTIGUOUS")
+        i = ctypes.c_int
+        lib.fc_score.argtypes = [dp, i, i, i, dp, dp, dp, dp, dp]
+        lib.fc_score.restype = None
+        lib.fc_climb.argtypes = [dp, dp, dp, i, i, i, i, dp, dp, dp, ctypes.c_uint64]
+        lib.fc_climb.restype = None
+        return lib
+    except (OSError, AttributeError):
+        return None
+
+
+def _build_fastcore():
+    try:
+        with open(_C_SOURCE, "rb") as f:
+            src = f.read()
+    except OSError:
+        return None
+    tag = hashlib.sha256(src + f"{sys.platform}-{platform.machine()}".encode()).hexdigest()[:12]
+    ext = {"win32": ".dll", "darwin": ".dylib"}.get(sys.platform, ".so")
+    name = f"fh6_fastcore-{tag}{ext}"
+    dirs = [os.path.join(os.path.dirname(_C_SOURCE), "__pycache__"),
+            os.path.join(tempfile.gettempdir(), "fh6_sticker")]
+    for d in dirs:
+        if os.path.exists(os.path.join(d, name)):
+            lib = _open_fastcore(os.path.join(d, name))
+            if lib:
+                return lib
+    compilers = [shlex.split(os.environ["CC"])] if os.environ.get("CC") else [["cc"], ["gcc"], ["clang"]]
+    compilers = [c for c in compilers if c and shutil.which(c[0])]
+    for d in dirs:
+        try:
+            os.makedirs(d, exist_ok=True)
+        except OSError:
+            continue
+        path = os.path.join(d, name)
+        tmp = f"{path}.{os.getpid()}.tmp"
+        for cc in compilers:
+            cmd = [*cc, "-O3", "-shared", "-o", tmp, _C_SOURCE, "-lm"]
+            if sys.platform != "win32":
+                cmd.insert(-2, "-fPIC")
+            try:
+                ok = subprocess.run(cmd, capture_output=True, timeout=120).returncode == 0
+                if ok:
+                    os.replace(tmp, path)
+            except (OSError, subprocess.TimeoutExpired):
+                ok = False
+            if ok:
+                lib = _open_fastcore(path)
+                if lib:
+                    return lib
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    return None
+
+
+class _NumpySearch:
+    name = "numpy"
+
+    def __init__(self, scorer, W, H):
+        self.scorer, self.W, self.H = scorer, W, H
+
+    def score(self, P):
+        return self.scorer.score_many(P, self.W, self.H)
+
+    def climb(self, p, d, c, rounds):
+        for _ in range(rounds):
+            M = mutate(np.repeat(p[None], CLIMB_BATCH, axis=0), self.W, self.H)
+            d2, c2 = self.scorer.score(M, self.W, self.H)
+            k = int(np.argmin(d2))
+            if d2[k] < d:
+                p, d, c = M[k], d2[k], c2[k]
+        return p, d, c
+
+
+class _CSearch:
+    name = "C"
+
+    def __init__(self, lib, scorer, W, H):
+        self.lib, self.s, self.W, self.H = lib, scorer, W, H
+
+    def score(self, P):
+        P = np.ascontiguousarray(P)
+        d, c = np.empty(len(P)), np.empty((len(P), 3))
+        self.lib.fc_score(P, len(P), self.W, self.H, self.s.ct, self.s.cq, self.s.ce, d, c)
+        return d, c
+
+    def climb(self, p, d, c, rounds):
+        p, d, c = np.array(p, dtype=np.float64), np.array([d], dtype=np.float64), np.array(c, dtype=np.float64)
+        seed = int(np.random.randint(0, 2 ** 63 - 1, dtype=np.int64))   # follows --seed
+        self.lib.fc_climb(p, d, c, rounds, CLIMB_BATCH, self.W, self.H, self.s.ct, self.s.cq, self.s.ce, seed)
+        return p, float(d[0]), c
+
+
+def fit(target, n_shapes, kinds, candidates=150, climbs=120, log=print, engine="auto"):
+    """Fit n_shapes opaque shapes to target (H, W, 3). engine: "auto" (C core when it
+    can be built, else numpy), "c" (fail without the C core) or "numpy"."""
     H, W, _ = target.shape
     target = np.asarray(target, dtype=np.float64)
     bg = np.median(target.reshape(-1, 3), axis=0)
     current = np.tile(bg, (H, W, 1))
     err_map = ((target - current) ** 2).sum(axis=2)
     scorer = _Scorer(target, err_map)
+    lib = load_fastcore() if engine in ("auto", "c") else None
+    if engine == "c" and lib is None:
+        raise RuntimeError("the C engine could not be built: install a C compiler (cc, gcc or clang) "
+                           "or use --engine numpy")
+    search = _CSearch(lib, scorer, W, H) if lib else _NumpySearch(scorer, W, H)
+    log(f"  engine: {search.name}")
     layers = []
     for i in range(n_shapes):
         # shapes start large and shrink as the picture fills in
         frac = 0.4 * (1 - i / n_shapes) ** 2 + 0.02
         P = random_shapes(candidates, W, H, kinds, frac, error_cdf(err_map) if i else None)
-        d, c = scorer.score_many(P, W, H)
+        d, c = search.score(P)
         k = int(np.argmin(d))
-        p, d, c = P[k], d[k], c[k]
-        for _ in range(max(1, climbs // CLIMB_BATCH)):
-            M = mutate(np.repeat(p[None], CLIMB_BATCH, axis=0), W, H)
-            d2, c2 = scorer.score(M, W, H)
-            k = int(np.argmin(d2))
-            if d2[k] < d:
-                p, d, c = M[k], d2[k], c2[k]
+        p, d, c = search.climb(P[k], d[k], c[k], max(1, climbs // CLIMB_BATCH))
         if not d < 0:
             log(f"  layer {i + 1}: no improvement found, stopping early")
             break
@@ -411,6 +536,9 @@ def main():
                    help="also write painter.json for the forza-painter importer in ./painter "
                         "(uses ellipses only, because that importer has no rotated rectangles)")
     p.add_argument("--seed", type=int, default=None, help="random seed for repeatable results")
+    p.add_argument("--engine", choices=("auto", "c", "numpy"), default="auto",
+                   help="fitting engine: auto (default) uses the C core when a C compiler is "
+                        "available and falls back to numpy")
     a = p.parse_args()
 
     if a.seed is not None:
@@ -430,7 +558,10 @@ def main():
     W, H = img.size
     target = np.asarray(img, dtype=np.float64)
     print(f"Fitting {a.shapes} shapes on a {W}x{H} working image ...")
-    bg, layers = fit(target, a.shapes, kinds, candidates=a.quality)
+    try:
+        bg, layers = fit(target, a.shapes, kinds, candidates=a.quality, engine=a.engine)
+    except RuntimeError as e:
+        sys.exit(str(e))
     write_outputs(a.out, a.source, bg, layers, W, H)
     if a.painter_json:
         pj = os.path.join(a.out, "painter.json")

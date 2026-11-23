@@ -101,3 +101,58 @@ def test_scorer_matches_direct_error():
         t = target[m]
         assert np.allclose(ck, t.mean(axis=0))
         assert np.isclose(dk, ((t - t.mean(axis=0)) ** 2).sum() - err[m].sum(), rtol=1e-9, atol=1e-6)
+
+
+def _c_search_or_skip(target, err):
+    import pytest
+    lib = fh6_sticker.load_fastcore()
+    if lib is None:
+        pytest.skip("no C compiler available")
+    H, W, _ = target.shape
+    return fh6_sticker._CSearch(lib, fh6_sticker._Scorer(target, err), W, H)
+
+
+def test_c_core_scores_match_numpy():
+    rng = np.random.default_rng(5)
+    target = _target()
+    H, W, _ = target.shape
+    err = rng.uniform(0, 5000, (H, W))
+    c_search = _c_search_or_skip(target, err)
+    np.random.seed(5)
+    P = fh6_sticker.random_shapes(400, W, H, ["circle", "square"])
+    P = np.vstack([P, [[40, 30, 20, 1.6, 0, 0], [40, 30, 20, 8, 90, 0], [200, 200, 5, 5, 0, 1]]])
+    d_np, c_np = fh6_sticker._Scorer(target, err).score_many(P, W, H)
+    d_c, c_c = c_search.score(P)
+    assert np.array_equal(np.isinf(d_np), np.isinf(d_c))
+    ok = np.isfinite(d_np)
+    assert np.allclose(d_c[ok], d_np[ok], rtol=1e-9, atol=1e-6)
+    assert np.allclose(c_c[ok], c_np[ok])
+
+
+def test_c_core_climb_only_improves():
+    target = _target()
+    H, W, _ = target.shape
+    err = ((target - target.mean(axis=(0, 1))) ** 2).sum(axis=2)
+    c_search = _c_search_or_skip(target, err)
+    np.random.seed(6)
+    P = fh6_sticker.random_shapes(20, W, H, ["circle", "square"])
+    d, c = c_search.score(P)
+    for p, d0 in zip(P, d):
+        p2, d2, c2 = c_search.climb(p, d0, np.zeros(3), 30)
+        assert d2 <= d0
+        if d2 < d0:  # the returned delta and colour belong to the returned shape
+            d3, c3 = c_search.score(p2[None])
+            assert np.isclose(d3[0], d2) and np.allclose(c3[0], c2)
+
+
+def test_both_engines_fit():
+    for engine in ("numpy", "c"):
+        if engine == "c" and fh6_sticker.load_fastcore() is None:
+            continue
+        np.random.seed(7)
+        target = _target()
+        bg, layers = fh6_sticker.fit(target, 15, ["circle", "square"], candidates=60, climbs=40,
+                                     log=lambda *_: None, engine=engine)
+        img = np.asarray(fh6_sticker.render(bg, layers, 80, 60, 1), dtype=np.float64)
+        flat = np.tile(np.array(bg, dtype=np.float64), (60, 80, 1))
+        assert ((img - target) ** 2).mean() < ((flat - target) ** 2).mean() / 2, engine

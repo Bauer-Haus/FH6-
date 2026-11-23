@@ -13,6 +13,10 @@ you a step-by-step layer sheet to follow in the game.
    ```
    pip install -r requirements.txt
    ```
+3. Optional, for about 7–10× faster fitting: have a C compiler installed. On Mac run
+   `xcode-select --install`; on Linux install `gcc`; on Windows install MinGW-w64 `gcc` and add it to PATH.
+   The tool builds its fast core (`fh6_fastcore.c`) by itself the first time it runs.
+   Without a compiler it still works, just slower.
 
 ## Use
 
@@ -33,12 +37,13 @@ This creates an `out/` folder with:
 
 Options:
 
-- `--shapes N`: more layers look closer to the photo but take longer to build in-game. 30–60 gives a rough look; detailed logos with text need around 1,000 (takes a few minutes to compute).
+- `--shapes N`: more layers look closer to the photo but take longer to build in-game. 30–60 gives a rough look; detailed logos with text need around 1,000 (about a second with the C core, under 10 seconds without).
 - `--size N`: working resolution in pixels. The default is 160, or 320 above 200 shapes. Higher catches finer detail but runs slower.
 - `--kinds circle` or `--kinds square`: use only one shape type.
 - `--quality N`: try more candidate shapes per layer (slower, slightly better).
 - `--out folder`: choose the output folder.
-- `--seed N`: get the same result every time. (Seeds from versions before the November 2026 speed-up give a different, similar-quality result.)
+- `--engine c` or `--engine numpy`: force the fast C core or the plain numpy code. The default, `auto`, uses C when it can.
+- `--seed N`: get the same result every time (with the same engine). (Seeds from versions before the November 2026 speed-up give a different, similar-quality result.)
 
 Simple, high-contrast images like logos, emblems and cartoon art work far better than busy photos.
 Cropping and removing the background before you run the tool helps a lot.
