@@ -26,6 +26,19 @@ Two smaller changes from the Go generator:
 - The final shape's colour is rounded to 8 bits before it is scored and painted. The canvas then matches the exported JSON exactly.
 - A layer is only added if the rounded shape still lowers the error.
 
+## Which GPUs
+
+| Series | Architecture | Support |
+|--------|--------------|---------|
+| RTX 20, GTX 16 | Turing (sm_75) | Built for it |
+| RTX 30 | Ampere (sm_86) | Built for it |
+| RTX 40 | Ada (sm_89) | Built for it |
+| RTX 50 | Blackwell (sm_120) | Built for it |
+| Newer | | Compiled by the driver from the portable code (PTX) on first run |
+| GTX 10 and older | Pascal and earlier | Not supported |
+
+The EXE is built with CUDA 12.9, so it needs a recent NVIDIA driver (575 or newer). With an older driver it reports "CUDA driver version is insufficient"; updating the driver fixes it. Super slow on a ~2,000 px image needs about 400 MB of GPU memory.
+
 ## Trying it (Windows, NVIDIA GPU)
 
 1. **Download.** Open the latest **cuda-generator** run under the repository's **Actions** tab and download the `forza-painter-geometrize-cuda` artifact. It contains the EXE, `bench.ps1` and this file. You need only an up-to-date NVIDIA driver; the CUDA runtime is built into the EXE.

@@ -5,10 +5,11 @@ option(FPG_CPU_ONLY "Build without CUDA (the tests and --cpu runs still work)" O
 if(FPG_CPU_ONLY)
   project(forza_painter_cuda LANGUAGES CXX)
 else()
-  # sm_75 (RTX 20), sm_86 (RTX 30, the 3090), sm_89 (RTX 40) as machine code,
-  # plus sm_90 machine code and PTX so newer cards can compile it at load time.
+  # Machine code for sm_75 (RTX 20 / GTX 16), sm_86 (RTX 30, the 3090),
+  # sm_89 (RTX 40) and sm_120 (RTX 50), plus sm_90 machine code and PTX so
+  # cards newer than these can compile it at load time.
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES 75-real 86-real 89-real 90)
+    set(CMAKE_CUDA_ARCHITECTURES 75-real 86-real 89-real 120-real 90)
   endif()
   project(forza_painter_cuda LANGUAGES CXX CUDA)
   set(CMAKE_CUDA_STANDARD 17)
