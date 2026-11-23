@@ -1,0 +1,167 @@
+name: cuda-generator
+
+on:
+  push:
+    paths:
+      - "painter/cuda-generator/**"
+      - "painter/src/**"
+      - "painter/config/**"
+      - "painter/bin/**"
+      - "painter/docs/**"
+      - "painter/requirements*.txt"
+      - ".github/workflows/cuda-generator.yml"
+  pull_request:
+    paths:
+      - "painter/cuda-generator/**"
+      - ".github/workflows/cuda-generator.yml"
+  workflow_dispatch:
+
+jobs:
+  # The CPU tests: shared maths against the Go generator's values, row runs
+  # against pixel-by-pixel scoring, and a whole run on the CPU backend.
+  cpu-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S painter/cuda-generator -B build -DFPG_CPU_ONLY=ON -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j 4
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # The Windows EXE. These servers have no GPU, so the GPU code is checked on
+  # a real card with `forza-painter-geometrize-cuda.exe --selftest`.
+  windows-cuda:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CUDA Toolkit 12.9.1
+        uses: Jimver/cuda-toolkit@v0.2.36
+        with:
+          cuda: "12.9.1"
+          method: network
+          sub-packages: '["nvcc", "cudart", "thrust", "visual_studio_integration"]'
+      - uses: ilammy/msvc-dev-cmd@v1.13.0
+      - name: Configure
+        shell: pwsh
+        run: cmake -S painter/cuda-generator -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_COMPILER="$env:CUDA_PATH\bin\nvcc.exe"
+      - name: Build
+        run: cmake --build build
+      - name: CPU tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Check the EXE starts without a GPU
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          .\build\forza-painter-geometrize-cuda.exe --selftest
+          if ($LASTEXITCODE -ne 1) { throw "expected the selftest to report no GPU (exit 1), got $LASTEXITCODE" }
+          exit 0
+      - name: Collect files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item build\forza-painter-geometrize-cuda.exe out\
+          Copy-Item painter\cuda-generator\bench.ps1 out\
+          Copy-Item painter\cuda-generator\README.md out\
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forza-painter-geometrize-cuda
+          path: out/
+          if-no-files-found: error
+
+  # The whole app as one Windows EXE, with the CUDA generator inside it in
+  # place of the Go one, plus the tools to test it. Pushes to cuda-generator
+  # also publish it as the "cuda-preview" pre-release, so it is one download.
+  app-package:
+    needs: windows-cuda
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: forza-painter-geometrize-cuda
+          path: cuda
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python packages
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r painter/requirements.txt -r painter/requirements-preview.txt pyinstaller==6.11.1
+          python -c "import tkinter; tkinter.Tk().destroy()"
+      - name: Put the CUDA generator in the app's bin folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force stage\bin | Out-Null
+          Copy-Item cuda\forza-painter-geometrize-cuda.exe stage\bin\forza-painter-geometrize-go.exe
+          Copy-Item painter\bin\README.md stage\bin\
+      - name: Build the app EXE
+        shell: pwsh
+        run: |
+          $root = (Resolve-Path painter).Path
+          $stageBin = (Resolve-Path stage\bin).Path
+          $pyArgs = @(
+            "--noconfirm", "--clean", "--onefile", "--windowed",
+            "--name", "forza-painter-fh6-cuda",
+            "--paths", "$root\src",
+            "--workpath", "build-app", "--specpath", "build-app", "--distpath", "build-app\dist",
+            "--hidden-import", "win32timezone",
+            "--hidden-import", "cv2",
+            "--hidden-import", "numpy",
+            "--hidden-import", "PIL",
+            "--hidden-import", "PIL.Image",
+            "--hidden-import", "PIL.ImageDraw",
+            "--hidden-import", "fh6_vinyl_resources",
+            "--hidden-import", "fh6_typecode_probe",
+            "--hidden-import", "fh6_typecode_export",
+            "--hidden-import", "fh6_typecode_import",
+            "--hidden-import", "fh6_typecode_trim",
+            "--hidden-import", "preprocess.luma",
+            "--add-data", "$root\config;config",
+            "--add-data", "$stageBin;bin",
+            "--add-data", "$root\docs;docs",
+            "--add-data", "$root\src\data;data",
+            "$root\src\app.py")
+          python -m PyInstaller @pyArgs
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed ($LASTEXITCODE)" }
+      - name: Make the package
+        shell: pwsh
+        run: |
+          $pkg = "forza-painter-fh6-cuda"
+          New-Item -ItemType Directory -Force "$pkg\tools" | Out-Null
+          Copy-Item build-app\dist\forza-painter-fh6-cuda.exe $pkg\
+          Copy-Item "painter\cuda-generator\package\START HERE.txt" $pkg\
+          Copy-Item cuda\forza-painter-geometrize-cuda.exe "$pkg\tools\"
+          Copy-Item cuda\bench.ps1 "$pkg\tools\"
+          Copy-Item cuda\README.md "$pkg\tools\CUDA-GENERATOR-README.md"
+          Copy-Item painter\bin\forza-painter-geometrize-go.exe "$pkg\tools\"
+          Copy-Item "painter\config\settings\c. balanced - good quality and speed.ini" "$pkg\tools\"
+          Compress-Archive -Path $pkg -DestinationPath "$pkg.zip"
+          Get-ChildItem -Recurse $pkg | Select-Object FullName, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forza-painter-fh6-cuda
+          path: forza-painter-fh6-cuda.zip
+          if-no-files-found: error
+      - name: Publish the cuda-preview pre-release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/cuda-generator'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          gh release delete cuda-preview --yes --cleanup-tag 2>$null
+          $notes = @"
+          The whole app in one download, with the new CUDA generator for NVIDIA RTX 20/30/40/50 cards.
+
+          **Not yet verified on a GPU.** Download forza-painter-fh6-cuda.zip, unzip it, and follow START HERE.txt. Needs NVIDIA driver 575 or newer; nothing else to install.
+
+          Built from ${{ github.sha }} on the cuda-generator branch.
+          "@
+          gh release create cuda-preview forza-painter-fh6-cuda.zip --target "${{ github.sha }}" --prerelease --title "CUDA generator preview" --notes $notes
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)" }
+          exit 0
