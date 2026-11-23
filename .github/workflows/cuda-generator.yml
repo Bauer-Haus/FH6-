@@ -51,6 +51,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $false
           .\build\forza-painter-geometrize-cuda.exe --selftest
           if ($LASTEXITCODE -ne 1) { throw "expected the selftest to report no GPU (exit 1), got $LASTEXITCODE" }
+          exit 0
       - name: Collect files
         shell: pwsh
         run: |
