@@ -24,7 +24,6 @@ def _target():
 
 
 def test_fit_reduces_error_and_returns_layers():
-    fh6_sticker.random.seed(1)
     np.random.seed(1)
     target = _target()
     bg, layers = fh6_sticker.fit(target, 20, ["circle"], candidates=60, climbs=40, log=lambda *_: None)
@@ -35,7 +34,6 @@ def test_fit_reduces_error_and_returns_layers():
 
 
 def test_painter_json_is_readable_by_forza_painter(tmp_path):
-    fh6_sticker.random.seed(2)
     np.random.seed(2)
     bg, layers = fh6_sticker.fit(_target(), 10, ["circle"], candidates=40, climbs=20, log=lambda *_: None)
     out = tmp_path / "painter.json"
@@ -59,3 +57,47 @@ def test_painter_json_rejects_rectangles(tmp_path):
     except ValueError:
         return
     raise AssertionError("expected ValueError for rectangle layers")
+
+
+def _brute_mask(p, W, H):
+    """Pixel-centre inside test written directly from the shape definition."""
+    ys, xs = np.mgrid[0:H, 0:W] + 0.5
+    X, Y = xs - p[0], ys - p[1]
+    a = np.radians(p[4])
+    u = X * np.cos(a) + Y * np.sin(a)
+    v = -X * np.sin(a) + Y * np.cos(a)
+    hw, hh = p[2] / 2, p[3] / 2
+    if p[5]:
+        return (u / hw) ** 2 + (v / hh) ** 2 <= 1
+    return (np.abs(u) <= hw) & (np.abs(v) <= hh)
+
+
+def test_row_runs_match_shape_definition():
+    rng = np.random.default_rng(3)
+    W, H = 50, 40
+    shapes = [[25, 20, 30, 10, 0, 1], [25, 20, 30, 10, 90, 0], [3, 37, 12, 40, 33, 0], [10, 10, 1.6, 1.6, 0, 1]]
+    shapes += [[*rng.uniform(-5, 55, 2), *rng.uniform(1.5, 60, 2), rng.uniform(0, 180), rng.integers(0, 2)]
+               for _ in range(300)]
+    for p in shapes:
+        p = np.array(p, dtype=float)
+        got, want = fh6_sticker.shape_mask(p, W, H), _brute_mask(p, W, H)
+        # allow disagreement only for pixel centres sitting exactly on the edge
+        assert (got != want).sum() <= 2, p
+
+
+def test_scorer_matches_direct_error():
+    rng = np.random.default_rng(4)
+    target = _target()
+    H, W, _ = target.shape
+    err = rng.uniform(0, 5000, (H, W))
+    scorer = fh6_sticker._Scorer(target, err)
+    P = fh6_sticker.random_shapes(50, W, H, ["circle", "square"])
+    d, c = scorer.score(P, W, H)
+    for p, dk, ck in zip(P, d, c):
+        m = fh6_sticker.shape_mask(p, W, H)
+        if m.sum() < 2:
+            assert dk == np.inf
+            continue
+        t = target[m]
+        assert np.allclose(ck, t.mean(axis=0))
+        assert np.isclose(dk, ((t - t.mean(axis=0)) ** 2).sum() - err[m].sum(), rtol=1e-9, atol=1e-6)

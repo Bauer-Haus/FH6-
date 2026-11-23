@@ -30,7 +30,6 @@ import io
 import json
 import math
 import os
-import random
 import sys
 import urllib.request
 
@@ -77,24 +76,6 @@ class Shape:
     def __init__(self, kind, cx, cy, w, h, rot):
         self.kind, self.cx, self.cy, self.w, self.h, self.rot = kind, cx, cy, w, h, rot
 
-    def copy(self):
-        return Shape(self.kind, self.cx, self.cy, self.w, self.h, self.rot)
-
-    def mask(self, W, H):
-        """(region, mask): region is a (row-slice, col-slice) of the canvas, mask a
-        boolean array of the shape inside that region. Only the bounding box is
-        rasterised, which keeps big layer counts fast."""
-        pts = self.polygon()
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        x0, x1 = max(int(min(xs)), 0), min(int(math.ceil(max(xs))) + 1, W)
-        y0, y1 = max(int(min(ys)), 0), min(int(math.ceil(max(ys))) + 1, H)
-        if x1 - x0 < 1 or y1 - y0 < 1:
-            return None, None
-        m = Image.new("L", (x1 - x0, y1 - y0), 0)
-        ImageDraw.Draw(m).polygon([(x - x0, y - y0) for x, y in pts], fill=255)
-        return (slice(y0, y1), slice(x0, x1)), np.asarray(m) > 127
-
     def polygon(self, scale=1):
         a = math.radians(self.rot)
         ca, sa = math.cos(a), math.sin(a)
@@ -105,91 +86,201 @@ class Shape:
         py = (self.cy + x * sa + y * ca) * scale
         return list(zip(px.tolist(), py.tolist()))
 
-    def mutate(self, W, H):
-        s = self.copy()
-        r = random.randint(0, 3)
-        if r == 0:
-            s.cx = min(max(s.cx + random.gauss(0, W * 0.05), 0), W)
-            s.cy = min(max(s.cy + random.gauss(0, H * 0.05), 0), H)
-        elif r == 1:
-            s.w = min(max(s.w + random.gauss(0, W * 0.05), 1.5), W * 1.5)
-        elif r == 2:
-            s.h = min(max(s.h + random.gauss(0, H * 0.05), 1.5), H * 1.5)
-        else:
-            s.rot = (s.rot + random.gauss(0, 20)) % 180
-        return s
+
+# --------------------------------------------------------------------------- fitting
+#
+# Shapes are fitted as rows of a (B, 6) float array: cx, cy, w, h, rot (degrees,
+# rotated the same way as Shape.polygon), is_circle. Both shape kinds are convex,
+# so each one covers a single run of pixels [x0, x1) on every image row. A pixel
+# belongs to a shape when its centre is inside. With per-row running totals of the
+# target and error images, a shape's best colour and error change come from two
+# lookups per row instead of touching every pixel it covers, and a whole batch of
+# shapes is scored in one numpy call.
+
+CX, CY, W_, H_, ROT, CIRC = range(6)
+SCORE_CHUNK = 32  # candidates scored together; see _Scorer.score_many
+
+
+def _line_range(k, c, r):
+    """For each element, the x range where -r <= k*x + c <= r (may be empty or unbounded)."""
+    safe = np.abs(k) > 1e-9
+    ks = np.where(safe, k, 1.0)
+    a, b = (-r - c) / ks, (r - c) / ks
+    inside = np.abs(c) <= r
+    lo = np.where(safe, np.minimum(a, b), np.where(inside, -np.inf, np.inf))
+    hi = np.where(safe, np.maximum(a, b), np.where(inside, np.inf, -np.inf))
+    return lo, hi
+
+
+def shape_spans(P, W, H, rows=None):
+    """Per-row pixel runs of shapes P (B, 6) on the given rows (default all):
+    integer arrays x0, x1 of shape (B, len(rows))."""
+    cx, cy, w, h, rot, circ = (P[:, j:j + 1] for j in range(6))
+    Y = (np.arange(H) if rows is None else rows) + 0.5 - cy   # row centres relative to the shape
+    a = np.radians(rot)
+    ca, sa = np.cos(a), np.sin(a)
+    hw, hh = w / 2, h / 2
+    # Ellipse: local u = X*ca + Y*sa, v = -X*sa + Y*ca, inside when (u/hw)^2 + (v/hh)^2 <= 1.
+    # For a fixed row that is a quadratic A*X^2 + B*X + C <= 0 in X.
+    ia, ib = 1 / (hw * hw), 1 / (hh * hh)
+    A = ca * ca * ia + sa * sa * ib
+    B = 2 * ca * sa * Y * (ia - ib)
+    C = Y * Y * (sa * sa * ia + ca * ca * ib) - 1
+    disc = B * B - 4 * A * C
+    root = np.sqrt(np.maximum(disc, 0))
+    el_lo = np.where(disc >= 0, (-B - root) / (2 * A), np.inf)
+    el_hi = np.where(disc >= 0, (-B + root) / (2 * A), -np.inf)
+    # Rectangle: |u| <= hw and |v| <= hh, each linear in X.
+    lo1, hi1 = _line_range(ca, sa * Y, hw)
+    lo2, hi2 = _line_range(-sa, ca * Y, hh)
+    is_c = circ > 0.5
+    lo = np.where(is_c, el_lo, np.maximum(lo1, lo2)) + cx
+    hi = np.where(is_c, el_hi, np.minimum(hi1, hi2)) + cx
+    x0 = np.clip(np.ceil(lo - 0.5), 0, W).astype(np.intp)
+    x1 = np.clip(np.floor(hi - 0.5) + 1, 0, W).astype(np.intp)
+    return x0, np.maximum(x1, x0)
+
+
+def shape_mask(P, W, H):
+    """Boolean (H, W) mask of one shape P (6,), using the same pixel rule as the fitter."""
+    x0, x1 = shape_spans(P[None], W, H)
+    cols = np.arange(W)
+    return (cols >= x0[0][:, None]) & (cols < x1[0][:, None])
+
+
+class _Scorer:
+    """Per-row running totals of the target (colour and squared colour) and of the
+    current error map, so any shape is scored from its row runs alone."""
+
+    def __init__(self, target, err_map):
+        H, W, _ = target.shape
+        self.rows = np.arange(H)
+        self.ct = np.zeros((H, W + 1, 3))
+        self.ct[:, 1:] = np.cumsum(target, axis=1)
+        self.cq = np.zeros((H, W + 1))
+        self.cq[:, 1:] = np.cumsum((target ** 2).sum(axis=2), axis=1)
+        self.ce = np.zeros((H, W + 1))
+        self.ce[:, 1:] = np.cumsum(err_map, axis=1)
+
+    def refresh_rows(self, err_map, rows):
+        self.ce[rows, 1:] = np.cumsum(err_map[rows], axis=1)
+
+    def score(self, P, W, H):
+        """(delta, colour) for each shape: the change in total squared error from
+        painting it opaque in its mean colour. delta is inf for shapes under 2 px.
+        Only rows some shape in P can reach are looked at, so keep batches local
+        (see score_many)."""
+        reach = np.hypot(P[:, W_], P[:, H_]) / 2      # covers the shape at any rotation
+        y0 = max(int(np.floor((P[:, CY] - reach).min())), 0)
+        y1 = min(int(np.ceil((P[:, CY] + reach).max())) + 1, H)
+        r = self.rows[y0:max(y1, y0)]
+        x0, x1 = shape_spans(P, W, H, r)
+        n = (x1 - x0).sum(axis=1)
+        s = (self.ct[r, x1] - self.ct[r, x0]).sum(axis=1)
+        q = (self.cq[r, x1] - self.cq[r, x0]).sum(axis=1)
+        e = (self.ce[r, x1] - self.ce[r, x0]).sum(axis=1)
+        nn = np.maximum(n, 1)
+        delta = q - (s * s).sum(axis=1) / nn - e      # sum((t - mean)^2) - old error
+        return np.where(n >= 2, delta, np.inf), s / nn[:, None]
+
+
+    def score_many(self, P, W, H, chunk=SCORE_CHUNK):
+        """score() for a large, spread-out batch: shapes are grouped by height on the
+        image so each group only reads the rows it needs."""
+        if len(P) <= chunk:
+            return self.score(P, W, H)
+        order = np.argsort(P[:, CY])
+        d, c = np.empty(len(P)), np.empty((len(P), 3))
+        for k in range(0, len(P), chunk):
+            idx = order[k:k + chunk]
+            d[idx], c[idx] = self.score(P[idx], W, H)
+        return d, c
 
 
 def error_cdf(err_map):
     """Running total of the error map, for picking pixels in proportion to their
-    error. Build it once per layer (the map only changes when a layer is added)
-    and pass it to random_shape for every candidate."""
+    error. Build it once per layer (the map only changes when a layer is added)."""
     return np.cumsum(err_map.ravel())
 
 
-def random_shape(W, H, kinds, max_frac=0.4, cdf=None):
-    """New random shape. With cdf (from error_cdf), the centre is picked where the
-    picture is still most wrong, so later layers go to the details."""
-    m = max(W, H)
+def random_shapes(n, W, H, kinds, max_frac=0.4, cdf=None):
+    """n new random shapes (n, 6). With cdf (from error_cdf), centres are picked where
+    the picture is still most wrong, so later layers go to the details."""
+    P = np.empty((n, 6))
     if cdf is not None:
         tot = cdf[-1]
         if tot > 0:
-            idx = min(int(np.searchsorted(cdf, random.random() * tot, side="right")), cdf.size - 1)
+            idx = np.minimum(np.searchsorted(cdf, np.random.random(n) * tot, side="right"), cdf.size - 1)
         else:
-            idx = random.randrange(cdf.size)
-        cy, cx = divmod(idx, W)
-        cx, cy = cx + random.random(), cy + random.random()
+            idx = np.random.randint(0, cdf.size, n)
+        cy, cx = np.divmod(idx, W)
+        P[:, CX] = cx + np.random.random(n)
+        P[:, CY] = cy + np.random.random(n)
     else:
-        cx, cy = random.uniform(0, W), random.uniform(0, H)
-    hi = max(m * max_frac, 3)
-    return Shape(random.choice(kinds), cx, cy, random.uniform(1.5, hi), random.uniform(1.5, hi),
-                 random.uniform(0, 180))
+        P[:, CX] = np.random.uniform(0, W, n)
+        P[:, CY] = np.random.uniform(0, H, n)
+    hi = max(max(W, H) * max_frac, 3)
+    P[:, W_] = np.random.uniform(1.5, hi, n)
+    P[:, H_] = np.random.uniform(1.5, hi, n)
+    P[:, ROT] = np.random.uniform(0, 180, n)
+    P[:, CIRC] = np.array([k == "circle" for k in kinds], float)[np.random.randint(0, len(kinds), n)]
+    return P
 
 
-# --------------------------------------------------------------------------- fitting
+def mutate(P, W, H):
+    """Copy of shapes P (n, 6) with one random tweak each: move, resize or rotate."""
+    P = P.copy()
+    n = len(P)
+    kind = np.random.randint(0, 4, n)
+    g1, g2 = np.random.standard_normal(n), np.random.standard_normal(n)
+    m = kind == 0
+    P[m, CX] = np.clip(P[m, CX] + g1[m] * W * 0.05, 0, W)
+    P[m, CY] = np.clip(P[m, CY] + g2[m] * H * 0.05, 0, H)
+    m = kind == 1
+    P[m, W_] = np.clip(P[m, W_] + g1[m] * W * 0.05, 1.5, W * 1.5)
+    m = kind == 2
+    P[m, H_] = np.clip(P[m, H_] + g1[m] * H * 0.05, 1.5, H * 1.5)
+    m = kind == 3
+    P[m, ROT] = (P[m, ROT] + g1[m] * 20) % 180
+    return P
 
-def evaluate(shape, target, current, err_map):
-    """Return (new_total_error_delta, color, mask). Opaque fill with best (mean) color."""
-    H, W, _ = target.shape
-    region, m = shape.mask(W, H)
-    if m is None or m.sum() < 2:
-        return 0.0, None, None
-    t = target[region][m]
-    color = t.mean(axis=0)
-    new_err = ((t - color) ** 2).sum()
-    old_err = err_map[region][m].sum()
-    return new_err - old_err, color, (region, m)
+
+def to_shape(p):
+    return Shape("circle" if p[CIRC] > 0.5 else "square", *(float(v) for v in p[:5]))
+
+
+CLIMB_BATCH = 4  # mutations tried at once per hill-climb step
 
 
 def fit(target, n_shapes, kinds, candidates=150, climbs=120, log=print):
     H, W, _ = target.shape
+    target = np.asarray(target, dtype=np.float64)
     bg = np.median(target.reshape(-1, 3), axis=0)
     current = np.tile(bg, (H, W, 1))
     err_map = ((target - current) ** 2).sum(axis=2)
+    scorer = _Scorer(target, err_map)
     layers = []
     for i in range(n_shapes):
-        best = None
         # shapes start large and shrink as the picture fills in
         frac = 0.4 * (1 - i / n_shapes) ** 2 + 0.02
-        cdf = error_cdf(err_map) if i else None
-        for _ in range(candidates):
-            s = random_shape(W, H, kinds, frac, cdf)
-            d, c, m = evaluate(s, target, current, err_map)
-            if c is not None and (best is None or d < best[0]):
-                best = (d, s, c, m)
-        d, s, c, m = best
-        for _ in range(climbs):
-            s2 = s.mutate(W, H)
-            d2, c2, m2 = evaluate(s2, target, current, err_map)
-            if c2 is not None and d2 < d:
-                d, s, c, m = d2, s2, c2, m2
-        if d >= 0:
+        P = random_shapes(candidates, W, H, kinds, frac, error_cdf(err_map) if i else None)
+        d, c = scorer.score_many(P, W, H)
+        k = int(np.argmin(d))
+        p, d, c = P[k], d[k], c[k]
+        for _ in range(max(1, climbs // CLIMB_BATCH)):
+            M = mutate(np.repeat(p[None], CLIMB_BATCH, axis=0), W, H)
+            d2, c2 = scorer.score(M, W, H)
+            k = int(np.argmin(d2))
+            if d2[k] < d:
+                p, d, c = M[k], d2[k], c2[k]
+        if not d < 0:
             log(f"  layer {i + 1}: no improvement found, stopping early")
             break
-        region, mk = m
-        current[region][mk] = c
-        err_map[region][mk] = ((target[region][mk] - c) ** 2).sum(axis=1)
-        layers.append((s, tuple(int(round(v)) for v in c)))
+        mk = shape_mask(p, W, H)
+        current[mk] = c
+        err_map[mk] = ((target[mk] - c) ** 2).sum(axis=1)
+        scorer.refresh_rows(err_map, np.flatnonzero(mk.any(axis=1)))
+        layers.append((to_shape(p), tuple(int(round(v)) for v in c)))
         if (i + 1) % (10 if n_shapes <= 200 else 50) == 0 or i + 1 == n_shapes:
             rmse = math.sqrt(err_map.mean() / 3)
             log(f"  {i + 1}/{n_shapes} layers, error {rmse:.1f}")
@@ -323,7 +414,6 @@ def main():
     a = p.parse_args()
 
     if a.seed is not None:
-        random.seed(a.seed)
         np.random.seed(a.seed)
     kinds = [k.strip() for k in a.kinds.split(",") if k.strip() in ("circle", "square")]
     if not kinds:
