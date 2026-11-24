@@ -257,7 +257,49 @@ def run_embedded_helper(helper_name, args):
             return fh6_typecode_trim.main()
         finally:
             sys.argv = previous_argv
+    if helper_name == "import_check":
+        return run_import_check(args)
     raise SystemExit(f"Unknown helper: {helper_name}")
+
+
+def run_import_check(args):
+    """Import the packages the app loads later, for checking a packaged EXE.
+
+    Used by the release build: a windowed EXE has no console, so the result is
+    written to the file named in args[0]. Returns 0 if everything imports.
+    """
+    import traceback
+
+    lines = []
+    status = 0
+    for name in ("numpy", "cv2", "PIL.Image", "PIL.ImageDraw", "psutil", "win32api", "win32timezone",
+                 "preprocess.luma", "region_painter.preview_renderer", "fh6_vinyl_resources"):
+        try:
+            __import__(name)
+            lines.append(f"ok   {name}")
+        except Exception:
+            status = 1
+            lines.append(f"FAIL {name}\n{traceback.format_exc()}")
+    if status == 0:
+        try:
+            import numpy as np
+            import cv2
+
+            image = np.zeros((8, 8, 3), np.uint8)
+            cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            lines.append(f"ok   numpy {np.__version__} and cv2 {cv2.__version__} work")
+        except Exception:
+            status = 1
+            lines.append(f"FAIL numpy/cv2 use\n{traceback.format_exc()}")
+    lines.append(f"generator: {GENERATOR_EXE} exists={GENERATOR_EXE.exists()}")
+    if not GENERATOR_EXE.exists():
+        status = 1
+    report = "\n".join(lines) + "\n"
+    if args:
+        Path(args[0]).write_text(report, encoding="utf-8")
+    elif sys.stdout:
+        sys.stdout.write(report)
+    return status
 
 
 def game_processes():

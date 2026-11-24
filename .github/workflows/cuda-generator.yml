@@ -91,7 +91,10 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r painter/requirements.txt -r painter/requirements-preview.txt pyinstaller==6.11.1
+          # A current PyInstaller: 6.11's own numpy hook predates numpy 2.5 and
+          # left numpy._core out of the EXE.
+          python -m pip install -r painter/requirements.txt -r painter/requirements-preview.txt --upgrade pyinstaller pyinstaller-hooks-contrib
+          python -m pip list
           python -c "import tkinter; tkinter.Tk().destroy()"
       - name: Put the CUDA generator in the app's bin folder
         shell: pwsh
@@ -121,6 +124,7 @@ jobs:
             "--hidden-import", "fh6_typecode_import",
             "--hidden-import", "fh6_typecode_trim",
             "--hidden-import", "preprocess.luma",
+            "--collect-submodules", "numpy",
             "--add-data", "$root\config;config",
             "--add-data", "$stageBin;bin",
             "--add-data", "$root\docs;docs",
@@ -128,6 +132,18 @@ jobs:
             "$root\src\app.py")
           python -m PyInstaller @pyArgs
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed ($LASTEXITCODE)" }
+      - name: Check the app EXE starts and imports everything
+        shell: pwsh
+        run: |
+          $report = Join-Path $PWD "import-check.txt"
+          $p = Start-Process build-app\dist\forza-painter-fh6-cuda.exe -ArgumentList "--helper", "import_check", "`"$report`"" -PassThru
+          $null = $p.Handle  # keeps the exit code readable after the process ends
+          if (-not $p.WaitForExit(240000)) {
+            Stop-Process -Id $p.Id -Force
+            throw "The app EXE didn't finish within 4 minutes. It probably crashed at start-up and is showing an error box."
+          }
+          if (Test-Path $report) { Get-Content $report }
+          if ($p.ExitCode -ne 0) { throw "The import check failed (exit code $($p.ExitCode))" }
       - name: Make the package
         shell: pwsh
         run: |
